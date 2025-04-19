@@ -24,6 +24,9 @@ export interface Signal {
     executed: boolean;
     order_id?: string;
     executed_at?: string;
+    expiryDate?: string;
+    formattedTitle?: string; // 👈 Add this!
+
   }
   
   export interface SignalResponse {

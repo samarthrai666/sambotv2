@@ -1,5 +1,5 @@
 // app/utils/logger.ts
-import { LogEntry } from '../types/trading';
+import { LogEntry } from '../../types/trading';
 import { Dispatch, SetStateAction } from 'react';
 
 /**

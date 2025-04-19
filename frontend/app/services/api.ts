@@ -1,5 +1,5 @@
 // app/services/api.ts
-import { SignalResponse, MarketData } from '../types/trading';
+import { SignalResponse, MarketData } from '../../types/trading';
 
 // Mock API functions
 export const executeSignal = async (signalId: string) => {

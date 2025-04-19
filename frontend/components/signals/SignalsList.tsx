@@ -52,19 +52,20 @@ export default function SignalsList({
       
       <div className="p-4 max-h-[600px] overflow-y-auto">
         {signals.length > 0 ? (
-          <div className="space-y-4">
-            {signals.map((signal) => (
-              <SignalCard 
-                key={signal.id} 
-                signal={{
-                  ...signal,
-                  formattedTitle: formatSignalTitle(signal)
-                }}
-                isExecuted={isExecuted}
-                onExecute={onExecute}
-              />
-            ))}
-          </div>
+         <div className="space-y-4">
+         {signals.map((signal, idx) => (
+           <SignalCard 
+             key={`${signal.id}-${idx}`} // ✅ Now guaranteed unique
+             signal={{
+               ...signal,
+               formattedTitle: formatSignalTitle(signal)
+             }}
+             isExecuted={isExecuted}
+             onExecute={onExecute}
+           />
+         ))}
+       </div>
+       
         ) : (
           <div className="text-center py-10">
             <p className="text-gray-500">{emptyMessage.primary}</p>
