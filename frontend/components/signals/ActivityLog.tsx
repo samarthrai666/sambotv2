@@ -26,23 +26,23 @@ export default function ActivityLog({ logs, onClear }: ActivityLogProps) {
         {logs.length > 0 ? (
           <table className="min-w-full text-xs">
             <tbody>
-              {logs.map(log => (
-                <tr key={log.id} className="border-b border-gray-100 last:border-0">
-                  <td className="py-2 px-3 text-gray-500 whitespace-nowrap">
+            {logs.map((log, idx) => (
+                <tr key={`${log.timestamp}-${idx}`} className="border-b border-gray-100 last:border-0">
+                    <td className="py-2 px-3 text-gray-500 whitespace-nowrap">
                     {new Date(log.timestamp).toLocaleTimeString()}
-                  </td>
-                  <td className="py-2 px-3 whitespace-nowrap">
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap">
                     <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                      log.type === 'info' ? 'bg-blue-500' : 
-                      log.type === 'success' ? 'bg-green-500' : 
-                      log.type === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                        log.type === 'info' ? 'bg-blue-500' : 
+                        log.type === 'success' ? 'bg-green-500' : 
+                        log.type === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
                     }`}></span>
-                  </td>
-                  <td className="py-2 px-3 text-gray-700 w-full">
+                    </td>
+                    <td className="py-2 px-3 text-gray-700 w-full">
                     {log.message}
-                  </td>
+                    </td>
                 </tr>
-              ))}
+                ))}
             </tbody>
           </table>
         ) : (
