@@ -1,8 +1,15 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import List, Dict
+from typing import List
 import asyncio
+import os
+from dotenv import load_dotenv
 
+# Load .env configs
+load_dotenv()
+AI_ENABLED = os.getenv("AI_ENABLED", "true").lower() == "true"
+
+# Import processors
 from processors import (
     nifty_scalp, nifty_swing, nifty_longterm,
     banknifty_scalp, banknifty_swing, banknifty_longterm
@@ -10,13 +17,14 @@ from processors import (
 
 app = FastAPI()
 
-# 📦 Define request model
+# 📦 Request schema
 class TradeModeRequest(BaseModel):
     nifty: List[str] = []
     banknifty: List[str] = []
     auto_execute: bool
+    log_enabled: bool = True
 
-# 🧠 Processor map
+# 🧠 Processor Map
 strategy_map = {
     "nifty_scalp": nifty_scalp.process,
     "nifty_swing": nifty_swing.process,
@@ -30,18 +38,22 @@ strategy_map = {
 async def process_trade_modes(req: TradeModeRequest):
     tasks = []
 
-    # 🧩 Check and queue up all processors from request
+    # 🧩 Add all selected processors
     for mode in req.nifty:
         key = f"nifty_{mode}"
         if key in strategy_map:
-            tasks.append(asyncio.create_task(strategy_map[key](req.auto_execute)))
+            tasks.append(asyncio.create_task(
+                strategy_map[key](req.auto_execute, req.log_enabled)
+            ))
 
     for mode in req.banknifty:
         key = f"banknifty_{mode}"
         if key in strategy_map:
-            tasks.append(asyncio.create_task(strategy_map[key](req.auto_execute)))
+            tasks.append(asyncio.create_task(
+                strategy_map[key](req.auto_execute, req.log_enabled)
+            ))
 
-    # 🚀 Run all selected processors in parallel
+    # 🚀 Run all processors concurrently
     results = await asyncio.gather(*tasks)
 
     # 🔄 Merge results
@@ -54,6 +66,6 @@ async def process_trade_modes(req: TradeModeRequest):
 
     return {
         "executed_signals": executed_signals,
-        "non_executed_signals": non_executed_signals
+        "non_executed_signals": non_executed_signals,
+        "ai_enabled": AI_ENABLED
     }
-
