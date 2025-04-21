@@ -87,3 +87,23 @@ export const fetchMarketData = async (): Promise<MarketData> => {
     };
   }
 };
+
+export const fetchAvailableSignals = async () => {
+  try {
+    const response = await apiClient.get('/signals/available');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching available signals:', error);
+    throw error;
+  }
+};
+
+export const refreshSignalAnalysis = async (signals: Signal[]) => {
+  try {
+    const response = await apiClient.post('/signals/refresh-analysis', signals);
+    return response.data;
+  } catch (error) {
+    console.error('Error refreshing signal analysis:', error);
+    throw error;
+  }
+};

@@ -1,9 +1,11 @@
 import joblib
 import pandas as pd
 import ta
+import os
 
 # Load trained model
-model = joblib.load("ml/sambot_model.joblib")
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "sambot_model.joblib")
+model = joblib.load(MODEL_PATH)
 
 def predict_signal_ml(data: dict):
     """
