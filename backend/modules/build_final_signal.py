@@ -1,6 +1,6 @@
-from modules.pre_market import run_pre_market_analysis
+from modules.pre_market import analyze_pdf_sentiment as run_pre_market_analysis
 from modules.market_open import run_market_open_analysis
-from modules.trend_analysis import detect_trend
+from modules.trend_analysis import get_trend_summary as detect_trend 
 from modules.support_resistance import get_support_resistance
 from modules.fib_analysis import get_fib_levels
 from modules.indicator_engine import calculate_indicators

@@ -8,7 +8,7 @@ interface SignalsListProps {
   title: string;
   isExecuted: boolean;
   onExecute?: (id: string) => void;
-  emptyMessage?: {
+  emptyMessage?: {y
     primary: string;
     secondary?: string;
   };
@@ -23,7 +23,7 @@ export default function SignalsList({
     primary: 'No signals available',
     secondary: 'Check back later or try refreshing'
   },
-  refreshInterval = 5000
+  refreshInterval = 30000
 }: SignalsListProps) {
   // Use our custom hook for live signals
   const { signals, isLoading, error, refreshSignals } = useAvailableSignals(refreshInterval);

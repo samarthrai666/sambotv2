@@ -606,42 +606,73 @@ class TrendDetector:
 
 # Example usage
 def analyze_trends(df: pd.DataFrame) -> pd.DataFrame:
+    """Analyze trends in the price data and return enriched DataFrame"""
     return TrendDetector(df).analyze_trends()
 
 def get_trend_summary(df: pd.DataFrame, lookback: int = 5) -> Dict:
+    """Get a summary of trend analysis from price data"""
     return TrendDetector(df).get_trend_summary(lookback)
 
 
-if __name__ == "__main__":
-    import yfinance as yf
-
-    print("📥 Downloading sample data for NIFTY...")
-    data = yf.download("^NSEI", period="6mo", interval="1d", auto_adjust=False)
-
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
-
-    data.columns = [col.lower() for col in data.columns]
-
-    # Analyze trends
-    print("🔍 Analyzing market trends...")
-    result = analyze_trends(data)
-
-    # Get trend summary
-    summary = get_trend_summary(data)
+# Add this function to support the expected interface in build_final_signal
+def detect_trend(data):
+    """
+    Adapter function to match the expected interface in build_final_signal.py
     
-    print("\n✅ Trend Analysis Complete!")
-    print(f"Current Consolidated Trend: {summary['current_trends']['consolidated']}")
-    print(f"Short-term Trend: {summary['current_trends']['short_term']}")
-    print(f"Medium-term Trend: {summary['current_trends']['medium_term']}")
-    print(f"Long-term Trend: {summary['current_trends']['long_term']}")
-    print(f"Trend Strength: {summary['metrics']['trend_strength']:.2f}/100")
-    print(f"ADX: {summary['metrics']['adx']:.2f}")
-    print(f"Market Structure: {summary['metrics']['market_structure']}")
-    print(f"Trend Duration: {summary['metrics']['trend_duration']} bars")
-    print(f"Trend Momentum: {summary['trend_momentum']}")
-    print(f"Trends Aligned: {'Yes' if summary['trends_aligned'] else 'No'}")
-    
-    # Save the results
-    result.to_csv("trend_analysis.csv")
-    print("\n📁 Full analysis saved to trend_analysis.csv")
+    Parameters:
+    -----------
+    data : dict or pd.DataFrame
+        Market data to analyze
+        
+    Returns:
+    --------
+    dict: Trend analysis summary
+    """
+    try:
+        # Convert data to DataFrame if it's in candle format
+        if isinstance(data, dict) and 'candles' in data:
+            candles = data['candles']
+            if not candles or len(candles) < 10:  # Need at least 10 bars for trend analysis
+                return {
+                    "trend": "neutral",
+                    "strength": 0.5,
+                    "error": "Insufficient data for trend analysis"
+                }
+            
+            # Convert candles to DataFrame
+            df = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        elif isinstance(data, pd.DataFrame):
+            df = data
+        else:
+            return {
+                "trend": "neutral",
+                "strength": 0.5,
+                "error": "Invalid data format for trend analysis" 
+            }
+        
+        # Get trend summary
+        summary = get_trend_summary(df)
+        
+        # Extract key information for the simplified return format
+        trend = summary['current_trends']['consolidated']
+        strength = float(summary['metrics']['trend_strength'] / 100.0)  # Scale to 0-1
+        
+        return {
+            "trend": trend,
+            "strength": strength,
+            "market_structure": summary['metrics']['market_structure'],
+            "duration": int(summary['metrics']['trend_duration']),
+            "momentum": summary['trend_momentum'],
+            "aligned": summary['trends_aligned'],
+            "short_term": summary['current_trends']['short_term'],
+            "medium_term": summary['current_trends']['medium_term'],
+            "long_term": summary['current_trends']['long_term']
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "trend": "neutral",
+            "strength": 0.5,
+            "error": str(e)
+        }
