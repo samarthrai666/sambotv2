@@ -23,24 +23,89 @@ export default function SignalsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  const logger = createLogger(setLogs);
+  // Create a modified logger that filters routine updates
+  const maxLogs = 100; // Maximum number of logs to keep
+  
+  const logger = {
+    // For trading signals only
+    signal: (message: string) => setLogs(prevLogs => [{
+      id: Date.now().toString(),
+      type: 'info',
+      message,
+      timestamp: new Date().toISOString()
+    }, ...prevLogs.slice(0, maxLogs - 1)]),
+    
+    // For successful trading operations
+    success: (message: string) => setLogs(prevLogs => [{
+      id: Date.now().toString(),
+      type: 'success',
+      message,
+      timestamp: new Date().toISOString()
+    }, ...prevLogs.slice(0, maxLogs - 1)]),
+    
+    // For warnings
+    warning: (message: string) => setLogs(prevLogs => [{
+      id: Date.now().toString(),
+      type: 'warning',
+      message,
+      timestamp: new Date().toISOString()
+    }, ...prevLogs.slice(0, maxLogs - 1)]),
+    
+    // For errors
+    error: (message: string) => setLogs(prevLogs => [{
+      id: Date.now().toString(),
+      type: 'error',
+      message,
+      timestamp: new Date().toISOString()
+    }, ...prevLogs.slice(0, maxLogs - 1)]),
+    
+    // Keep original info method for backward compatibility
+    // but don't use it for routine updates
+    info: (message: string) => console.log(message),
+    
+    clear: () => setLogs([])
+  };
 
   const loadMarketData = useCallback(async () => {
     try {
       const data = await fetchMarketData();
       setMarketData(data);
-      logger.info('Market data updated');
+      // Don't log this routine update
     } catch (error) {
       console.error('Error fetching market data:', error);
       logger.error('Failed to update market data');
     }
-  }, [logger]);
+  }, []);
+
+  const formatSignalDetails = (signal: any): string => {
+    const direction = signal.action;
+    const strikeInfo = `${signal.symbol} ${signal.strike} ${signal.optionType}`;
+    const priceInfo = `Entry: ${signal.price.toFixed(2)}, Target: ${signal.target_price.toFixed(2)}, SL: ${signal.stop_loss.toFixed(2)}`;
+    const rrrInfo = `RRR: ${signal.risk_reward_ratio.toFixed(2)}`;
+    
+    return `${direction} ${strikeInfo} - ${priceInfo} - ${rrrInfo}`;
+  };
 
   const loadStoredSignals = useCallback(async () => {
     const storedSignals = localStorage.getItem('tradingSignals');
     if (storedSignals) {
       try {
-        setSignals(JSON.parse(storedSignals));
+        const parsedSignals = JSON.parse(storedSignals);
+        
+        // Check for new signals compared to current state
+        const currentSignalIds = signals.non_executed_signals.map(s => s.id);
+        const newSignals = parsedSignals.non_executed_signals.filter(
+          (s: any) => !currentSignalIds.includes(s.id)
+        );
+        
+        // Log new signals
+        if (newSignals.length > 0) {
+          newSignals.forEach((signal: any) => {
+            logger.signal(`New Signal: ${formatSignalDetails(signal)}`);
+          });
+        }
+        
+        setSignals(parsedSignals);
       } catch (error) {
         console.error('Error parsing signals:', error);
         logger.error('Failed to load stored signals');
@@ -48,15 +113,22 @@ export default function SignalsPage() {
     } else {
       try {
         const response = await refreshSignals();
+        
+        // Log any signals that were loaded
+        if (response.non_executed_signals.length > 0) {
+          response.non_executed_signals.forEach(signal => {
+            logger.signal(`New Signal: ${formatSignalDetails(signal)}`);
+          });
+        }
+        
         setSignals(response);
         localStorage.setItem('tradingSignals', JSON.stringify(response));
-        logger.info('Loaded default signals');
       } catch (error) {
         console.error('Error loading default signals:', error);
         logger.error('Failed to load default signals');
       }
     }
-  }, [logger]);
+  }, [signals.non_executed_signals]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -73,7 +145,6 @@ export default function SignalsPage() {
         loadMarketData()
       ]).then(() => {
         setLoading(false);
-        logger.info('Dashboard initialized successfully');
       }).catch(error => {
         console.error('Error loading initial data:', error);
         logger.error('Failed to initialize dashboard');
@@ -86,7 +157,7 @@ export default function SignalsPage() {
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [router, loadStoredSignals, loadMarketData, logger]);
+  }, [router, loadStoredSignals, loadMarketData]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -100,7 +171,16 @@ export default function SignalsPage() {
 
   const handleManualExecution = async (signalId: string) => {
     try {
-      logger.info(`Executing signal ${signalId}...`);
+      // Find the signal to be executed
+      const signalToExecute = signals.non_executed_signals.find(s => s.id === signalId);
+      if (!signalToExecute) {
+        logger.error(`Signal ${signalId} not found`);
+        return;
+      }
+      
+      // Log with meaningful details
+      logger.signal(`Executing Trade: ${formatSignalDetails(signalToExecute)}`);
+      
       const response = await executeSignal(signalId);
 
       setSignals(prevSignals => {
@@ -120,7 +200,10 @@ export default function SignalsPage() {
         };
 
         localStorage.setItem('tradingSignals', JSON.stringify(newSignals));
-        logger.success(`Signal ${signalId} executed successfully (Order ID: ${response.order_id})`);
+        
+        // Log success with meaningful details
+        logger.success(`Order Executed: ${formatSignalDetails(signalToMove)} (Order ID: ${response.order_id})`);
+        
         return newSignals;
       });
     } catch (error) {
@@ -131,13 +214,27 @@ export default function SignalsPage() {
 
   const handleRefreshSignals = async () => {
     setIsRefreshing(true);
-    logger.info('Refreshing signals...');
 
     try {
+      const prevSignalIds = signals.non_executed_signals.map(s => s.id);
       const response = await refreshSignals();
+      
+      // Check for new signals
+      const newSignals = response.non_executed_signals.filter(
+        s => !prevSignalIds.includes(s.id)
+      );
+      
+      // Log each new signal
+      if (newSignals.length > 0) {
+        newSignals.forEach(signal => {
+          logger.signal(`New Signal: ${formatSignalDetails(signal)}`);
+        });
+        logger.success(`Found ${newSignals.length} new trading signals`);
+      } else {
+      }
+      
       setSignals(response);
       localStorage.setItem('tradingSignals', JSON.stringify(response));
-      logger.success('Signals refreshed successfully');
     } catch (error) {
       console.error('Error refreshing signals:', error);
       logger.error('Failed to refresh signals');
@@ -148,6 +245,32 @@ export default function SignalsPage() {
 
   const handleBackToSelection = () => {
     router.push('/selection');
+  };
+
+  // Future function for closing positions
+  const handleClosePosition = async (signalId: string) => {
+    try {
+      // Find the signal being closed
+      const signalToClose = signals.executed_signals.find(s => s.id === signalId);
+      if (!signalToClose) {
+        logger.error(`Signal ${signalId} not found`);
+        return;
+      }
+      
+      // Log exit intent
+      logger.signal(`Closing Position: ${formatSignalDetails(signalToClose)}`);
+      
+      // API call would go here
+      // const response = await closePosition(signalId);
+      
+      // Update state, etc.
+      
+      // Log success
+      logger.success(`Position Closed: ${formatSignalDetails(signalToClose)} (PnL: +₹1,250)`);
+    } catch (error) {
+      console.error('Error closing position:', error);
+      logger.error(`Failed to close position ${signalId}`);
+    }
   };
 
   if (!isAuthenticated || loading) {
@@ -163,7 +286,7 @@ export default function SignalsPage() {
       <Header showActions={true} />
       <main className="flex-grow bg-gradient-to-br from-white to-green-50 py-6">
         <div className="max-w-7xl mx-auto px-4">
-          <MarketDataBar marketData={marketData} />
+        <MarketDataBar marketData={marketData} refreshInterval={60000} />
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Trading Signals</h1>
             <div className="flex space-x-3">

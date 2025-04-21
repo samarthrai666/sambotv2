@@ -22,12 +22,13 @@ load_dotenv()
 AI_ENABLED = os.getenv("AI_ENABLED", "true").lower() == "true"
 FYERS_TOKEN = os.getenv("FYERS_ACCESS_TOKEN")
 FYERS_BASE_URL = os.getenv("FYERS_BASE_URL", "https://api.fyers.in/api/v2")
-MOCK_MODE = True  # Force mock mode for testing
+MOCK_MODE = os.getenv("MOCK_FYERS", "false").lower() == "true"
 
-print("=== ENVIRONMENT VARIABLES ===")
-print(f"MOCK_FYERS env var: {os.getenv('MOCK_FYERS', 'NOT SET')}")
-print(f"Calculated MOCK_MODE: {os.getenv('MOCK_FYERS', 'true').lower() == 'true'}")
-print("============================")
+print("===== DEBUG ENVIRONMENT SETTINGS =====")
+print(f"MOCK_FYERS env var value: '{os.getenv('MOCK_FYERS')}'")
+print(f"MOCK_MODE in main.py: {MOCK_MODE}")
+print(f"AI_ENABLED: {AI_ENABLED}")
+print("=====================================")
 
 # Import processors
 from processors import (
@@ -345,41 +346,52 @@ async def refresh_signal_analysis(signals: List[dict]):
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.get("/signals/available")
-async def get_available_signals():
-    """Get available trading signals based on current market data"""
+async def get_available_signals(nifty: str = "", banknifty: str = ""):
+    """Get available trading signals based on selected indices and modes"""
     try:
-        # Process signals for key indices/timeframes
-        nifty_swing_result = await nifty_swing.process(auto_execute=False, log_enabled=True)
-        banknifty_scalp_result = await banknifty_scalp.process(auto_execute=False, log_enabled=True)
+        print("\n===== DEBUGGING SIGNALS FLOW =====")
+        print(f"Starting get_available_signals() with selections: nifty={nifty}, banknifty={banknifty}")
         
-        # Combine signals from different processors
+        # Parse the selections
+        nifty_modes = nifty.split(",") if nifty else []
+        banknifty_modes = banknifty.split(",") if banknifty else []
+        
+        print(f"Parsed selections: nifty_modes={nifty_modes}, banknifty_modes={banknifty_modes}")
+        
         all_signals = []
         
-        # Add non-executed signals from each processor
-        if nifty_swing_result and "non_executed" in nifty_swing_result:
-            # Format signals for frontend compatibility
-            for signal in nifty_swing_result["non_executed"]:
-                formatted_signal = format_signal_for_frontend(signal, "NIFTY", "swing")
-                all_signals.append(formatted_signal)
+        # Only process the selected indices and modes
+        for mode in nifty_modes:
+            if mode in ['scalp', 'swing', 'longterm']:
+                print(f"Processing NIFTY {mode} signals...")
+                processor_key = f"nifty_{mode}"
+                if processor_key in strategy_map:
+                    result = await strategy_map[processor_key](auto_execute=False)
+                    if result and "non_executed" in result and result["non_executed"]:
+                        for signal in result["non_executed"]:
+                            formatted_signal = format_signal_for_frontend(signal, "NIFTY", mode)
+                            all_signals.append(formatted_signal)
         
-        if banknifty_scalp_result and "non_executed" in banknifty_scalp_result:
-            for signal in banknifty_scalp_result["non_executed"]:
-                formatted_signal = format_signal_for_frontend(signal, "BANKNIFTY", "scalp")
-                all_signals.append(formatted_signal)
+        for mode in banknifty_modes:
+            if mode in ['scalp', 'swing', 'longterm']:
+                print(f"Processing BANKNIFTY {mode} signals...")
+                processor_key = f"banknifty_{mode}"
+                if processor_key in strategy_map:
+                    result = await strategy_map[processor_key](auto_execute=False)
+                    if result and "non_executed" in result and result["non_executed"]:
+                        for signal in result["non_executed"]:
+                            formatted_signal = format_signal_for_frontend(signal, "BANKNIFTY", mode)
+                            all_signals.append(formatted_signal)
         
-        # If no signals were found, return sample signals
-        if not all_signals:
-            print("[WARNING] No signals detected, returning sample signals")
-            return get_sample_signals()
-            
+        print(f"Found {len(all_signals)} signals")
         return all_signals
     except Exception as e:
         print(f"[ERROR] Failed to get available signals: {str(e)}")
         import traceback
         traceback.print_exc()
         
-        # Return sample signals on error
-        return get_sample_signals()
+        # Return empty array on error
+        return []
 
 def format_signal_for_frontend(signal, symbol, strategy):
     """Format a signal from the backend format to the frontend expected format"""
@@ -443,58 +455,6 @@ def format_signal_for_frontend(signal, symbol, strategy):
         "expiryDate": expiry_date
     }
 
-def get_sample_signals():
-    """Return sample signals when real signals are not available"""
-    nifty_signal = {
-        "id": f"nifty-swing-{int(time.time())}",
-        "symbol": "NIFTY",
-        "instrumentType": "Option",
-        "strike": 22500,
-        "optionType": "CE",
-        "action": "BUY",
-        "price": 22450.75,
-        "target_price": 22500.00,
-        "stop_loss": 22400.00,
-        "quantity": 50,
-        "potential_return": 0.0022,
-        "risk_reward_ratio": 1.8,
-        "timeframe": "1hour",
-        "confidence_score": 85,
-        "indicators": ["RSI", "MACD", "VWAP", "Bollinger Bands"],
-        "patterns": ["Support Bounce", "Bullish Engulfing"],
-        "strategy": "swing",
-        "aiAnalysis": "Strong buy signal with multiple indicator confluence and trend support",
-        "notes": "NIFTY swing opportunity with strong confirmation",
-        "timestamp": datetime.now().isoformat(),
-        "executed": False,
-        "expiryDate": "Apr 24th"
-    }
-    
-    bank_signal = {
-        "id": f"banknifty-scalp-{int(time.time())}",
-        "symbol": "BANKNIFTY",
-        "instrumentType": "Option",
-        "strike": 48500,
-        "optionType": "PE",
-        "action": "SELL",
-        "price": 48750.25,
-        "target_price": 48650.00,
-        "stop_loss": 48850.00,
-        "quantity": 25,
-        "potential_return": 0.0020,
-        "risk_reward_ratio": 1.5,
-        "timeframe": "5min",
-        "confidence_score": 78,
-        "indicators": ["RSI", "MACD", "EMA Cross"],
-        "patterns": ["Resistance Rejection"],
-        "strategy": "scalp",
-        "notes": "Short-term resistance hit with overbought indicators",
-        "timestamp": datetime.now().isoformat(),
-        "executed": False,
-        "expiryDate": "Apr 24th"
-    }
-    
-    return [nifty_signal, bank_signal]
 
 # Placeholder implementations for the missing functions
 async def get_symbol_data(symbol):

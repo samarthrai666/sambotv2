@@ -27,16 +27,39 @@ apiClient.interceptors.request.use(
 
 export const refreshSignals = async (): Promise<SignalResponse> => {
   try {
-    const response = await apiClient.post('/signal/process', {
-      nifty: ['scalp', 'swing', 'longterm'],
-      banknifty: ['scalp', 'swing', 'longterm'],
-      auto_execute: false,
-      log_enabled: true
-    });
+    // Get user preferences from localStorage
+    const preferencesStr = localStorage.getItem('tradingPreferences');
+    let nifty = [];
+    let banknifty = [];
+    
+    // Use stored preferences if available
+    if (preferencesStr) {
+      try {
+        const storedPrefs = JSON.parse(preferencesStr);
+        nifty = storedPrefs.nifty || [];
+        banknifty = storedPrefs.banknifty || [];
+      } catch (e) {
+        console.error('Error parsing trading preferences:', e);
+      }
+    }
+    
+    console.log('Using trading preferences:', { nifty, banknifty });
+    
+    // Build query params
+    const params = new URLSearchParams();
+    if (nifty.length > 0) {
+      params.append('nifty', nifty.join(','));
+    }
+    if (banknifty.length > 0) {
+      params.append('banknifty', banknifty.join(','));
+    }
+    
+    // Send the request with the user's preferences as query params
+    const response = await apiClient.get(`/signals/available?${params.toString()}`);
     
     return {
-      executed_signals: response.data.executed_signals || [],
-      non_executed_signals: response.data.non_executed_signals || []
+      executed_signals: [],
+      non_executed_signals: response.data || []
     };
   } catch (error) {
     console.error('Error refreshing signals:', error);

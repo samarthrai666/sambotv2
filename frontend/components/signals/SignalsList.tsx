@@ -23,7 +23,7 @@ export default function SignalsList({
     primary: 'No signals available',
     secondary: 'Check back later or try refreshing'
   },
-  refreshInterval = 30000
+  refreshInterval = 3000
 }: SignalsListProps) {
   // Use our custom hook for live signals
   const { signals, isLoading, error, refreshSignals } = useAvailableSignals(refreshInterval);

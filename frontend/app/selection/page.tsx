@@ -132,12 +132,20 @@ export default function SelectionPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     setIsSubmitting(true);
     
     try {
-      const response = await submitTradingPreference(formData);
-      // Store response in localStorage for the signals page
-      localStorage.setItem('tradingSignals', JSON.stringify(response));
+      // Save the user's selections to localStorage
+      const preferences = {
+        nifty: formData.indexes.includes('NIFTY') ? formData.modes : [],
+        banknifty: formData.indexes.includes('BANKNIFTY') ? formData.modes : []
+      };
+      
+      console.log('Saving preferences:', preferences);
+      localStorage.setItem('tradingPreferences', JSON.stringify(preferences));
+      
+      // Navigate to signals page
       router.push('/signals');
     } catch (error) {
       console.error('Error submitting preferences:', error);
