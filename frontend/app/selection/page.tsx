@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import UploadPDF from '@/components/UploadPDF'
+
 
 // Define types for our component props and state
 type IndexType = 'NIFTY' | 'BANKNIFTY';
@@ -165,7 +167,6 @@ export default function SelectionPage() {
               <h1 className="text-2xl font-bold text-gray-900 text-center mb-8">
                 Configure Trading Mode
               </h1>
-              
               <form onSubmit={handleSubmit} className="space-y-8">
                 {/* Index Selection */}
                 <div className="space-y-3">
@@ -327,6 +328,7 @@ export default function SelectionPage() {
                     />
                   </button>
                 </div>
+                <UploadPDF />
 
                 {/* Submit Button */}
                 <button
