@@ -135,13 +135,14 @@ def analyze_signal(data, index: str, mode: str):
                 "macd": indicators.get("macd", 0),
                 "macd_signal": indicators.get("macd_signal", 0),
                 "supertrend_direction": "bullish" if trend.lower().find("up") >= 0 else "bearish",
-                "ema_9_20_cross": "bullish" if indicators.get("ema_9", 0) > indicators.get("ema_20", 0) else "bearish",
+                "ema_9_20_cross": "bullish" if (indicators.get("ema_9", 0).iloc[-1] if hasattr(indicators.get("ema_9", 0), 'iloc') else indicators.get("ema_9", 0)) > 
+                              (indicators.get("ema_20", 0).iloc[-1] if hasattr(indicators.get("ema_20", 0), 'iloc') else indicators.get("ema_20", 0)) else "bearish",
                 "price_above_vwap": current_price > indicators.get("vwap", 0)
             },
             
             "volume_analysis": {
                 "volume_surge_pct": indicators.get("rel_volume", 1) * 100 - 100,
-                "obv_trend": "up" if indicators.get("obv", 0) > 0 else "down"
+                "obv_trend": "up" if (indicators.get("obv", 0).iloc[-1] if hasattr(indicators.get("obv", 0), 'iloc') else indicators.get("obv", 0)) > 0 else "down"
             },
             
             "pattern_analysis": {

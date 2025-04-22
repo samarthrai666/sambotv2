@@ -59,6 +59,16 @@ async def get_data(index: str, mode: str):
         return load_mock_data(index, mode)
 
     try:
+        # Import and initialize Fyers SDK
+        from fyers_apiv3 import fyersModel
+        
+        client_id = os.getenv("FYERS_CLIENT_ID")
+        if not client_id:
+            print("[ERROR] FYERS_CLIENT_ID is not set.")
+            return load_mock_data(index, mode)
+            
+        fyers = fyersModel.FyersModel(client_id=client_id, token=FYERS_TOKEN, is_async=False, log_path="")
+        
         symbol_map = {
             "NIFTY": "NSE:NIFTY50-INDEX",
             "BANKNIFTY": "NSE:NIFTYBANK-INDEX"
@@ -68,42 +78,60 @@ async def get_data(index: str, mode: str):
             print(f"[ERROR] Unknown index: {index}")
             return { "candles": [] }
 
-        resolution = get_resolution(mode)
+        # Map mode to resolution according to documentation
+        resolution_map = {
+            "scalp": "1",  # 1-minute for scalping
+            "swing": "60",  # 1-hour for swing
+            "longterm": "D"  # Daily for long-term
+        }
+        resolution = resolution_map.get(mode, "1")
+        
         from_date, to_date = get_date_range(mode)
-
-        payload = {
+        
+        # Format dates according to documentation (use date_format=1 for YYYY-MM-DD)
+        from_date_str = from_date.strftime('%Y-%m-%d')
+        to_date_str = to_date.strftime('%Y-%m-%d')
+        
+        print(f"[API] Using Fyers SDK to get history data for {symbol_map[index.upper()]}")
+        print(f"[API] Dates: {from_date_str} to {to_date_str}, Resolution: {resolution}")
+        
+        # Prepare request using the exact format from documentation
+        history_params = {
             "symbol": symbol_map[index.upper()],
             "resolution": resolution,
-            "date_format": 1,
-            "range_from": from_date.strftime('%Y-%m-%d'),
-            "range_to": to_date.strftime('%Y-%m-%d'),
-            "cont_flag": "1"
+            "date_format": 1,  # Use YYYY-MM-DD format
+            "range_from": from_date_str,
+            "range_to": to_date_str,
+            "cont_flag": 1  # Documentation shows this as an int
         }
-
-        headers = {
-            "Authorization": f"Bearer {FYERS_TOKEN}",
-            "Content-Type": "application/json"
-        }
-
-        print(f"[API] Sending POST to {FYERS_BASE_URL}/history with payload:")
-        print(json.dumps(payload, indent=2))
-
-        async with httpx.AsyncClient() as client:
-            response = await client.post(f"{FYERS_BASE_URL}/history", json=payload, headers=headers)
-            print(f"[API] Status code: {response.status_code}")
-
-            if response.status_code != 200:
-                print(f"[API ERROR] {response.status_code}: {response.text}")
-                return load_mock_data(index, mode)
-
-            data = response.json()
-            candles = data.get("candles", [])
-            if not candles:
-                print(f"[API WARNING] No candles returned")
-                return load_mock_data(index, mode)
-
-            print(f"[API] ✅ {len(candles)} candles fetched successfully.")
-            return data
+        
+        print(f"[API] Request params: {history_params}")
+        
+        history_data = fyers.history(data=history_params)
+        
+        print(f"[API] Response type: {type(history_data)}")
+        if isinstance(history_data, dict):
+            print(f"[API] Response keys: {list(history_data.keys())}")
+            print(f"[API] Status: {history_data.get('s', 'unknown')}")
+        else:
+            print(f"[API] Non-dict response: {history_data}")
+        
+        # Check if the response was successful
+        if not isinstance(history_data, dict) or history_data.get("s") != "ok":
+            error_msg = history_data.get("message", str(history_data)) if isinstance(history_data, dict) else str(history_data)
+            print(f"[API ERROR] Failed to get history data: {error_msg}")
+            return load_mock_data(index, mode)
+        
+        # Extract candles from the response
+        candles = history_data.get("candles", [])
+        if not candles:
+            print(f"[API WARNING] No candles returned")
+            return load_mock_data(index, mode)
+        
+        print(f"[API] ✅ {len(candles)} candles fetched successfully.")
+        
+        # Return in the expected format
+        return {"candles": candles}
 
     except Exception as e:
         print(f"[ERROR] Exception occurred while fetching data: {str(e)}")

@@ -1,3 +1,4 @@
+import json
 from modules.pre_market import analyze_pdf_sentiment as run_pre_market_analysis
 from modules.market_open import run_market_open_analysis
 from modules.trend_analysis import get_trend_summary as detect_trend 
@@ -13,6 +14,7 @@ from modules.risk_management import evaluate_risk
 from modules.psychology import check_psychology
 from ml.predict_ml_signal import predict_signal_ml
 from modules.openai_checker import validate_with_openai
+
 
 def build_final_signal(data: dict, index: str, mode: str) -> dict:
     signal = {}

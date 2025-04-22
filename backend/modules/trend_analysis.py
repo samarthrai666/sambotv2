@@ -21,15 +21,23 @@ class TrendDetector:
     to identify market trends across different timeframes.
     """
     
-    def __init__(self, data: pd.DataFrame):
+    def __init__(self, data):
         """
         Initialize with OHLCV price data.
         
         Parameters:
         -----------
-        data : pd.DataFrame
+        data : pd.DataFrame or dict
             DataFrame containing 'open', 'high', 'low', 'close', and 'volume' columns
+            or dictionary with 'candles' key
         """
+        import pandas as pd
+        
+        # Convert data to DataFrame if it's a dictionary
+        if isinstance(data, dict) and 'candles' in data:
+            candles = data['candles']
+            data = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        
         required_columns = ['open', 'high', 'low', 'close']
         missing = [col for col in required_columns if col not in data.columns]
         
@@ -629,6 +637,8 @@ def detect_trend(data):
     dict: Trend analysis summary
     """
     try:
+        import pandas as pd
+        
         # Convert data to DataFrame if it's in candle format
         if isinstance(data, dict) and 'candles' in data:
             candles = data['candles']
@@ -641,33 +651,54 @@ def detect_trend(data):
             
             # Convert candles to DataFrame
             df = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume"])
+            
+            # Get trend summary with the DataFrame
+            summary = get_trend_summary(df)
+            
+            # Extract key information for the simplified return format
+            trend = summary['current_trends']['consolidated']
+            strength = float(summary['metrics']['trend_strength'] / 100.0)  # Scale to 0-1
+            
+            return {
+                "trend": trend,
+                "strength": strength,
+                "market_structure": summary['metrics']['market_structure'],
+                "duration": int(summary['metrics']['trend_duration']),
+                "momentum": summary['trend_momentum'],
+                "aligned": summary['trends_aligned'],
+                "short_term": summary['current_trends']['short_term'],
+                "medium_term": summary['current_trends']['medium_term'],
+                "long_term": summary['current_trends']['long_term']
+            }
         elif isinstance(data, pd.DataFrame):
+            # Direct DataFrame input
             df = data
+            
+            # Get trend summary
+            summary = get_trend_summary(df)
+            
+            # Extract key information for the simplified return format
+            trend = summary['current_trends']['consolidated']
+            strength = float(summary['metrics']['trend_strength'] / 100.0)  # Scale to 0-1
+            
+            return {
+                "trend": trend,
+                "strength": strength,
+                "market_structure": summary['metrics']['market_structure'],
+                "duration": int(summary['metrics']['trend_duration']),
+                "momentum": summary['trend_momentum'],
+                "aligned": summary['trends_aligned'],
+                "short_term": summary['current_trends']['short_term'],
+                "medium_term": summary['current_trends']['medium_term'],
+                "long_term": summary['current_trends']['long_term']
+            }
         else:
+            # Unsupported data type
             return {
                 "trend": "neutral",
                 "strength": 0.5,
-                "error": "Invalid data format for trend analysis" 
+                "error": f"Invalid data format for trend analysis: {type(data)}" 
             }
-        
-        # Get trend summary
-        summary = get_trend_summary(df)
-        
-        # Extract key information for the simplified return format
-        trend = summary['current_trends']['consolidated']
-        strength = float(summary['metrics']['trend_strength'] / 100.0)  # Scale to 0-1
-        
-        return {
-            "trend": trend,
-            "strength": strength,
-            "market_structure": summary['metrics']['market_structure'],
-            "duration": int(summary['metrics']['trend_duration']),
-            "momentum": summary['trend_momentum'],
-            "aligned": summary['trends_aligned'],
-            "short_term": summary['current_trends']['short_term'],
-            "medium_term": summary['current_trends']['medium_term'],
-            "long_term": summary['current_trends']['long_term']
-        }
     except Exception as e:
         import traceback
         traceback.print_exc()

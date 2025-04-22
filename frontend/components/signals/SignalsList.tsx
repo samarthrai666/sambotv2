@@ -8,7 +8,7 @@ interface SignalsListProps {
   title: string;
   isExecuted: boolean;
   onExecute?: (id: string) => void;
-  emptyMessage?: {y
+  emptyMessage?: {
     primary: string;
     secondary?: string;
   };
@@ -27,6 +27,11 @@ export default function SignalsList({
 }: SignalsListProps) {
   // Use our custom hook for live signals
   const { signals, isLoading, error, refreshSignals } = useAvailableSignals(refreshInterval);
+
+  // Filter signals based on execution status
+  const filteredSignals = signals.filter(signal => 
+    isExecuted === !!signal.executed_at
+  );
 
   // Format the signal title to display in the desired format
   const formatSignalTitle = (signal: Signal) => {
@@ -50,7 +55,7 @@ export default function SignalsList({
     <div className="bg-white rounded-lg shadow-md overflow-hidden border border-green-100 relative">
       <div className="border-b border-green-100 bg-green-50 py-3 px-4 flex justify-between items-center">
         <h2 className="font-semibold text-green-800">
-          {title} ({signals.length})
+          {title} ({filteredSignals.length})
         </h2>
         <button 
           onClick={refreshSignals} 
@@ -73,9 +78,9 @@ export default function SignalsList({
           </div>
         )}
         
-        {signals.length > 0 ? (
+        {filteredSignals.length > 0 ? (
          <div className="space-y-4">
-         {signals.map((signal, idx) => (
+         {filteredSignals.map((signal, idx) => (
            <SignalCard 
              key={`${signal.id}-${idx}`}
              signal={{

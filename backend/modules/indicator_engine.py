@@ -11,15 +11,21 @@ class TradingIndicators:
     with configurable parameters and advanced analysis techniques.
     """
     
-    def __init__(self, data: pd.DataFrame):
+    def __init__(self, data):
         """
         Initialize with OHLCV price data.
         
         Parameters:
         -----------
-        data : pd.DataFrame
+        data : pd.DataFrame or dict
             DataFrame containing 'open', 'high', 'low', 'close', and 'volume' columns
+            or dictionary with 'candles' key
         """
+        # Convert data to DataFrame if it's a dictionary
+        if isinstance(data, dict) and 'candles' in data:
+            candles = data['candles']
+            data = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume"])
+
         required_columns = ['open', 'high', 'low', 'close', 'volume']
         missing = [col for col in required_columns if col not in data.columns]
         
@@ -220,24 +226,38 @@ class TradingIndicators:
     def vwap(self) -> pd.Series:
         """
         Volume Weighted Average Price
-        Note: This implementation resets VWAP at the start of each day.
-        For intraday use, you should reset based on session boundaries.
         """
         df = self.data.copy()
-        # Assuming df.index is DatetimeIndex
-        df['date'] = df.index.date
+        
+        # Calculate typical price
+        typical_price = (df['high'] + df['low'] + df['close']) / 3
         
         # Calculate price * volume
-        df['pv'] = ((df['high'] + df['low'] + df['close']) / 3) * df['volume']
+        df['pv'] = typical_price * df['volume']
         
-        # Calculate cumulative values for each day
-        df['cum_pv'] = df.groupby('date')['pv'].cumsum()
-        df['cum_vol'] = df.groupby('date')['volume'].cumsum()
+        # For grouping, we'll create a simple date grouping
+        # If we can't use the index, create artificial groups
+        try:
+            if isinstance(df.index, pd.DatetimeIndex):
+                df['date_group'] = df.index.date
+            elif 'timestamp' in df.columns:
+                # Try to convert timestamp column to datetime
+                df['date_group'] = pd.to_datetime(df['timestamp']).dt.date
+            else:
+                # Group every 75 rows as a "day" (arbitrary number for intraday)
+                df['date_group'] = [i // 75 for i in range(len(df))]
+        except:
+            # Fallback to a single group if all else fails
+            df['date_group'] = 0
+        
+        # Calculate cumulative values for each group
+        df['cum_pv'] = df.groupby('date_group')['pv'].cumsum()
+        df['cum_vol'] = df.groupby('date_group')['volume'].cumsum()
         
         # Calculate VWAP
-        df['vwap'] = df['cum_pv'] / df['cum_vol']
+        vwap_series = df['cum_pv'] / df['cum_vol'].replace(0, 1)  # Avoid division by zero
         
-        return df['vwap']
+        return vwap_series
     
     def chaikin_money_flow(self, period: int = 20) -> pd.Series:
         """Chaikin Money Flow"""
