@@ -11,7 +11,7 @@ interface MarketDataBarProps {
 
 export default function MarketDataBar({ 
   marketData: initialMarketData, 
-  refreshInterval = 30000 // default 30 seconds
+  refreshInterval = 50000 // default 5 seconds
 }: MarketDataBarProps) {
   const [marketData, setMarketData] = useState<MarketData | null>(initialMarketData);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -33,11 +33,27 @@ export default function MarketDataBar({
     }
   };
 
+  // Update component state when initialMarketData changes
   useEffect(() => {
-    // Only auto-refresh if market is open
+    if (initialMarketData) {
+      setMarketData(initialMarketData);
+    }
+  }, [initialMarketData]);
+
+  useEffect(() => {
+    // Skip setting up interval if refreshInterval is 0 or negative
+    if (!refreshInterval || refreshInterval <= 0) {
+      return;
+    }
+    
+    // Only auto-refresh if market is open and refresh interval is positive
     if (marketData?.marketStatus === 'open') {
+      console.log(`MarketDataBar: Setting up refresh interval of ${refreshInterval}ms`);
       const intervalId = setInterval(refreshMarketData, refreshInterval);
-      return () => clearInterval(intervalId);
+      return () => {
+        console.log('MarketDataBar: Clearing refresh interval');
+        clearInterval(intervalId);
+      };
     }
   }, [marketData?.marketStatus, refreshInterval]);
 
@@ -46,7 +62,6 @@ export default function MarketDataBar({
     e.preventDefault();
     refreshMarketData();
   };
-
 
   // Loading skeleton
   if (!marketData) {
@@ -142,12 +157,14 @@ export default function MarketDataBar({
           <div>
             <span className="text-gray-500">Auto-Refresh:</span>
             <span className="ml-1 font-medium">
-              {marketData.marketStatus === 'open' ? 'Active' : 'Paused'}
+              Every {1000 / 1000}s
             </span>
           </div>
           <div>
-            <span className="text-gray-500">Data Source:</span>
-            <span className="ml-1 font-medium">Fyers API</span>
+            <span className="text-gray-500">Last Updated:</span>
+            <span className="ml-1 font-medium">
+              {lastUpdated.toLocaleTimeString()}
+            </span>
           </div>
         </div>
       )}

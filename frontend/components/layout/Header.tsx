@@ -12,6 +12,7 @@ export default function Header({ showActions = true }: HeaderProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Check authentication status when component mounts
   useEffect(() => {
@@ -25,7 +26,15 @@ export default function Header({ showActions = true }: HeaderProps) {
       checkAuth();
     }, 0);
     
-    return () => clearTimeout(timer);
+    // Update time every second for the digital clock
+    const clockInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearInterval(clockInterval);
+    };
   }, []);
 
   const handleLogin = () => {
@@ -48,29 +57,46 @@ export default function Header({ showActions = true }: HeaderProps) {
 
   return (
     <>
-      {/* Green gradient line at the top for visual interest */}
-      <div className="h-1 bg-gradient-to-r from-green-400 to-green-600 w-full"></div>
+      {/* Solid green line at the top - no animation */}
+      <div className="h-1 bg-green-500 w-full"></div>
       
-      <header className="bg-white sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <header className="bg-white sticky top-0 z-10 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              {/* Logo - A circular icon with "S" and a graph line */}
-              <Link href="/" className="flex items-center">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-center mr-2 shadow-md">
-                  <div className="text-white font-bold text-lg relative">
-                    S
-                    <div className="absolute top-0 right-0 h-1/2 w-1/2">
-                      <div className="absolute bottom-0 right-0 w-full h-1/3 bg-white transform rotate-45 rounded-full"></div>
+              {/* Futuristic Logo - kept the rotation but removed other animations */}
+              <Link href="/" className="flex items-center group">
+                <div className="relative w-12 h-12 flex items-center justify-center">
+                  {/* Fixed outer ring - no animation */}
+                  <div className="absolute w-12 h-12 rounded-full border-2 border-green-400 opacity-80"></div>
+                  
+                  {/* Inner rotating circle - kept this animation */}
+                  <div className="absolute w-10 h-10 rounded-full border-t-2 border-r-2 border-green-500 animate-spin"></div>
+                  
+                  {/* Core circle with gradient */}
+                  <div className="absolute w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-green-600 shadow-md flex items-center justify-center z-10">
+                    <span className="text-white font-bold text-lg tracking-tighter">S</span>
+                  </div>
+                </div>
+                
+                {/* Text with gradient - no animation */}
+                <div className="ml-3 flex flex-col">
+                  <span className="text-2xl font-bold text-green-600">
+                    SAMBOT
+                  </span>
+                  <span className="text-xs text-green-600 tracking-widest font-medium">AI TRADING ASSISTANT</span>
+                </div>
+                
+                {/* Trading system status - kept the time but removed animations */}
+                <div className="ml-4 bg-white border border-green-200 px-2 py-1 rounded-md font-mono text-xs text-green-700 hidden md:block">
+                  <div className="flex flex-col items-center">
+                    <div>{currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                    <div className="text-green-500 text-xs flex items-center">
+                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                      ONLINE
                     </div>
                   </div>
                 </div>
-                <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-green-700">
-                  Sambot
-                </span>
-                <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full animate-pulse">
-                  BETA
-                </span>
               </Link>
             </div>
             
@@ -80,14 +106,14 @@ export default function Header({ showActions = true }: HeaderProps) {
                   <>
                     <button
                       onClick={handleSignalPage}
-                      className="text-green-600 hover:text-green-800 font-medium transition-colors duration-300 px-4 py-2 rounded hover:bg-green-50"
+                      className="px-6 py-2 text-green-600 font-medium hover:bg-green-50 rounded-md transition duration-300"
                     >
                       Trading Signals
                     </button>
                     
                     <button
                       onClick={handleLogout}
-                      className="text-gray-600 hover:text-gray-800 transition-colors duration-300 px-4 py-2 rounded hover:bg-gray-50"
+                      className="px-6 py-2 border border-green-200 rounded-md text-gray-600 hover:border-green-400 hover:text-green-600 transition-colors duration-300"
                     >
                       Logout
                     </button>
@@ -95,12 +121,10 @@ export default function Header({ showActions = true }: HeaderProps) {
                 ) : (
                   <button
                     onClick={handleLogin}
-                    className={`px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transform hover:scale-105 transition-all duration-300 shadow-md ${
-                      isLoading ? 'opacity-75 cursor-not-allowed' : ''
-                    }`}
                     disabled={isLoading}
+                    className="px-6 py-2 rounded-md shadow-md bg-green-600 text-white hover:bg-green-700 transition-all duration-300"
                   >
-                    {isLoading ? 'Loading...' : 'Login'}
+                    {isLoading ? 'Connecting...' : 'Login'}
                   </button>
                 )}
               </div>

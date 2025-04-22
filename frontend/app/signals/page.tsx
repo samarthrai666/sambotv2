@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/Header';
 import Footer from '../../components/layout/Footer';
 import MarketDataBar from '@/components/signals/MarketDataBar';
 import SignalsList from '@/components/signals/SignalsList';
 import ActivityLog from '@/components/signals/ActivityLog';
-import { SignalResponse, LogEntry, MarketData } from '../../types/trading';
+import { SignalResponse, LogEntry, MarketData, Signal } from '../../types/trading';
 import { executeSignal, refreshSignals, fetchMarketData } from '../services/api';
 import { createLogger } from '../utils/logger';
 
@@ -22,6 +22,13 @@ export default function SignalsPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  
+  // Reference to store interval ID
+  const intervalIdRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Use a single refresh interval for all data - changed to 5 seconds (5000ms)
+  const REFRESH_INTERVAL = 5000;
 
   // Create a modified logger that filters routine updates
   const maxLogs = 100; // Maximum number of logs to keep
@@ -66,17 +73,6 @@ export default function SignalsPage() {
     clear: () => setLogs([])
   };
 
-  const loadMarketData = useCallback(async () => {
-    try {
-      const data = await fetchMarketData();
-      setMarketData(data);
-      // Don't log this routine update
-    } catch (error) {
-      console.error('Error fetching market data:', error);
-      logger.error('Failed to update market data');
-    }
-  }, []);
-
   const formatSignalDetails = (signal: any): string => {
     const direction = signal.action;
     const strikeInfo = `${signal.symbol} ${signal.strike} ${signal.optionType}`;
@@ -86,41 +82,65 @@ export default function SignalsPage() {
     return `${direction} ${strikeInfo} - ${priceInfo} - ${rrrInfo}`;
   };
 
+  // Centralized fetch function that updates both market data and signals
+  // Removed dependency on signals.non_executed_signals
+  const fetchAllData = useCallback(async () => {
+    console.log(`[${new Date().toLocaleTimeString()}] Fetching all data...`);
+    
+    try {
+      // First fetch market data
+      const data = await fetchMarketData();
+      setMarketData(data);
+      
+      // Then fetch signals (if not currently refreshing)
+      if (!isRefreshing) {
+        const response = await refreshSignals();
+        
+        // Use functional state update to avoid dependency on signals
+        setSignals(prevSignals => {
+          // Check for new signals compared to current state
+          const currentSignalIds = prevSignals.non_executed_signals.map(s => s.id);
+          const newSignals = response.non_executed_signals.filter(
+            s => !currentSignalIds.includes(s.id)
+          );
+          
+          // Log new signals
+          if (newSignals.length > 0) {
+            newSignals.forEach(signal => {
+              logger.signal(`New Signal: ${formatSignalDetails(signal)}`);
+            });
+            logger.success(`Found ${newSignals.length} new trading signals`);
+          }
+          
+          // Store in localStorage
+          localStorage.setItem('tradingSignals', JSON.stringify(response));
+          
+          return response;
+        });
+      }
+      
+      // Update the last updated timestamp
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      logger.error('Failed to update data');
+    }
+  }, [isRefreshing]); // Removed signals.non_executed_signals dependency
+
   const loadStoredSignals = useCallback(async () => {
     const storedSignals = localStorage.getItem('tradingSignals');
     if (storedSignals) {
       try {
         const parsedSignals = JSON.parse(storedSignals);
-        
-        // Check for new signals compared to current state
-        const currentSignalIds = signals.non_executed_signals.map(s => s.id);
-        const newSignals = parsedSignals.non_executed_signals.filter(
-          (s: any) => !currentSignalIds.includes(s.id)
-        );
-        
-        // Log new signals
-        if (newSignals.length > 0) {
-          newSignals.forEach((signal: any) => {
-            logger.signal(`New Signal: ${formatSignalDetails(signal)}`);
-          });
-        }
-        
         setSignals(parsedSignals);
       } catch (error) {
         console.error('Error parsing signals:', error);
         logger.error('Failed to load stored signals');
       }
     } else {
+      // If no stored signals, fetch signals but don't log them yet
       try {
         const response = await refreshSignals();
-        
-        // Log any signals that were loaded
-        if (response.non_executed_signals.length > 0) {
-          response.non_executed_signals.forEach(signal => {
-            logger.signal(`New Signal: ${formatSignalDetails(signal)}`);
-          });
-        }
-        
         setSignals(response);
         localStorage.setItem('tradingSignals', JSON.stringify(response));
       } catch (error) {
@@ -128,8 +148,9 @@ export default function SignalsPage() {
         logger.error('Failed to load default signals');
       }
     }
-  }, [signals.non_executed_signals]);
+  }, []);
 
+  // Initial load effect
   useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem('token');
@@ -140,9 +161,10 @@ export default function SignalsPage() {
 
       setIsAuthenticated(true);
 
+      // Load initial data
       Promise.all([
         loadStoredSignals(),
-        loadMarketData()
+        fetchMarketData().then(data => setMarketData(data))
       ]).then(() => {
         setLoading(false);
       }).catch(error => {
@@ -157,17 +179,38 @@ export default function SignalsPage() {
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [router, loadStoredSignals, loadMarketData]);
+  }, [router, loadStoredSignals]);
 
+  // Set up a single data fetch interval with improved cleanup
   useEffect(() => {
     if (!isAuthenticated) return;
-
-    const interval = setInterval(() => {
-      loadMarketData();
-    }, 60000);
-
-    return () => clearInterval(interval);
-  }, [isAuthenticated, loadMarketData]);
+    
+    console.log(`Setting up refresh interval (${REFRESH_INTERVAL}ms)`);
+    
+    // Initial fetch
+    fetchAllData();
+    
+    // Clear any existing interval first
+    if (intervalIdRef.current) {
+      clearInterval(intervalIdRef.current);
+      intervalIdRef.current = null;
+    }
+    
+    // Set up interval and store the reference
+    intervalIdRef.current = setInterval(() => {
+      console.log(`[${new Date().toLocaleTimeString()}] Interval triggered`);
+      fetchAllData();
+    }, REFRESH_INTERVAL);
+    
+    // Clean up interval on unmount or when dependencies change
+    return () => {
+      console.log('Clearing refresh interval');
+      if (intervalIdRef.current) {
+        clearInterval(intervalIdRef.current);
+        intervalIdRef.current = null;
+      }
+    };
+  }, [isAuthenticated, fetchAllData]);
 
   const handleManualExecution = async (signalId: string) => {
     try {
@@ -212,32 +255,15 @@ export default function SignalsPage() {
     }
   };
 
-  const handleRefreshSignals = async () => {
+  const handleManualRefresh = async () => {
     setIsRefreshing(true);
 
     try {
-      const prevSignalIds = signals.non_executed_signals.map(s => s.id);
-      const response = await refreshSignals();
-      
-      // Check for new signals
-      const newSignals = response.non_executed_signals.filter(
-        s => !prevSignalIds.includes(s.id)
-      );
-      
-      // Log each new signal
-      if (newSignals.length > 0) {
-        newSignals.forEach(signal => {
-          logger.signal(`New Signal: ${formatSignalDetails(signal)}`);
-        });
-        logger.success(`Found ${newSignals.length} new trading signals`);
-      } else {
-      }
-      
-      setSignals(response);
-      localStorage.setItem('tradingSignals', JSON.stringify(response));
+      await fetchAllData();
+      logger.success('Data refreshed manually');
     } catch (error) {
-      console.error('Error refreshing signals:', error);
-      logger.error('Failed to refresh signals');
+      console.error('Error during manual refresh:', error);
+      logger.error('Manual refresh failed');
     } finally {
       setIsRefreshing(false);
     }
@@ -245,32 +271,6 @@ export default function SignalsPage() {
 
   const handleBackToSelection = () => {
     router.push('/selection');
-  };
-
-  // Future function for closing positions
-  const handleClosePosition = async (signalId: string) => {
-    try {
-      // Find the signal being closed
-      const signalToClose = signals.executed_signals.find(s => s.id === signalId);
-      if (!signalToClose) {
-        logger.error(`Signal ${signalId} not found`);
-        return;
-      }
-      
-      // Log exit intent
-      logger.signal(`Closing Position: ${formatSignalDetails(signalToClose)}`);
-      
-      // API call would go here
-      // const response = await closePosition(signalId);
-      
-      // Update state, etc.
-      
-      // Log success
-      logger.success(`Position Closed: ${formatSignalDetails(signalToClose)} (PnL: +₹1,250)`);
-    } catch (error) {
-      console.error('Error closing position:', error);
-      logger.error(`Failed to close position ${signalId}`);
-    }
   };
 
   if (!isAuthenticated || loading) {
@@ -286,12 +286,22 @@ export default function SignalsPage() {
       <Header showActions={true} />
       <main className="flex-grow bg-gradient-to-br from-white to-green-50 py-6">
         <div className="max-w-7xl mx-auto px-4">
-        <MarketDataBar marketData={marketData} refreshInterval={60000} />
+          {/* Pass marketData as prop, but don't let the component poll for data */}
+          <MarketDataBar 
+            marketData={marketData} 
+            refreshInterval={0}  
+          />
+          
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Trading Signals</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Trading Signals</h1>
+              <p className="text-xs text-gray-500">
+                Last updated: {lastUpdated.toLocaleTimeString()} • Auto-refresh: {REFRESH_INTERVAL/1000}s
+              </p>
+            </div>
             <div className="flex space-x-3">
               <button
-                onClick={handleRefreshSignals}
+                onClick={handleManualRefresh}
                 disabled={isRefreshing}
                 className={`px-4 py-2 text-sm rounded-md bg-white border border-green-300 shadow-sm hover:bg-green-50 ${
                   isRefreshing ? 'opacity-75 cursor-not-allowed' : ''
@@ -305,7 +315,7 @@ export default function SignalsPage() {
                     </svg>
                     Refreshing...
                   </span>
-                ) : 'Refresh Signals'}
+                ) : 'Manual Refresh'}
               </button>
               <button
                 onClick={handleBackToSelection}
@@ -317,25 +327,29 @@ export default function SignalsPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Pass signals directly to lists instead of fetching in the components */}
             <SignalsList
               title="✅ Ongoing Trades"
-              signals={signals.executed_signals}
               isExecuted={true}
+              onExecute={handleManualExecution}
               emptyMessage={{
                 primary: "No active trades at the moment.",
                 secondary: "Execute a signal to see it here."
               }}
+              refreshInterval={0}  // Disable component level polling
+              signals={signals.executed_signals}
             />
 
             <SignalsList
               title="💡 Available Signals"
-              signals={signals.non_executed_signals}
               isExecuted={false}
               onExecute={handleManualExecution}
               emptyMessage={{
                 primary: "No available signals at the moment.",
                 secondary: "Try refreshing or changing your selection criteria."
               }}
+              refreshInterval={0}  // Disable component level polling
+              signals={signals.non_executed_signals}
             />
           </div>
 

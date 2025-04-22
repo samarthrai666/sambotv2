@@ -2,7 +2,6 @@
 
 import { Signal } from '../../types/trading';
 import SignalCard from './SignalCard';
-import { useAvailableSignals } from '@/components/signals/useAvailableSignal'
 
 interface SignalsListProps {
   title: string;
@@ -13,6 +12,7 @@ interface SignalsListProps {
     secondary?: string;
   };
   refreshInterval?: number;
+  signals: Signal[]; // Now required as a prop
 }
 
 export default function SignalsList({
@@ -23,15 +23,10 @@ export default function SignalsList({
     primary: 'No signals available',
     secondary: 'Check back later or try refreshing'
   },
-  refreshInterval = 3000
+  refreshInterval = 0,
+  signals = []
 }: SignalsListProps) {
-  // Use our custom hook for live signals
-  const { signals, isLoading, error, refreshSignals } = useAvailableSignals(refreshInterval);
-
-  // Filter signals based on execution status
-  const filteredSignals = signals.filter(signal => 
-    isExecuted === !!signal.executed_at
-  );
+  // We're now receiving signals directly as props instead of fetching them
 
   // Format the signal title to display in the desired format
   const formatSignalTitle = (signal: Signal) => {
@@ -55,44 +50,23 @@ export default function SignalsList({
     <div className="bg-white rounded-lg shadow-md overflow-hidden border border-green-100 relative">
       <div className="border-b border-green-100 bg-green-50 py-3 px-4 flex justify-between items-center">
         <h2 className="font-semibold text-green-800">
-          {title} ({filteredSignals.length})
+          {title} ({signals.length})
         </h2>
-        <button 
-          onClick={refreshSignals} 
-          className="text-xs text-green-600 hover:text-green-800 flex items-center"
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <span className="mr-1">
-              <div className="w-3 h-3 border-t-2 border-green-500 rounded-full animate-spin"></div>
-            </span>
-          ) : null}
-          Refresh
-        </button>
       </div>
       
       <div className="p-4 max-h-[600px] overflow-y-auto">
-        {error && (
-          <div className="bg-red-50 text-red-600 p-2 mb-3 rounded text-sm">
-            {error}
+        {signals.length > 0 ? (
+          <div className="space-y-4">
+            {signals.map((signal, idx) => (
+              <SignalCard 
+                key={`${signal.id}-${idx}`}
+                signal={signal}
+                title={formatSignalTitle(signal)}
+                isExecuted={isExecuted}
+                onExecute={onExecute}
+              />
+            ))}
           </div>
-        )}
-        
-        {filteredSignals.length > 0 ? (
-         <div className="space-y-4">
-         {filteredSignals.map((signal, idx) => (
-           <SignalCard 
-             key={`${signal.id}-${idx}`}
-             signal={{
-               ...signal,
-               formattedTitle: formatSignalTitle(signal)
-             }}
-             isExecuted={isExecuted}
-             onExecute={onExecute}
-           />
-         ))}
-       </div>
-       
         ) : (
           <div className="text-center py-10">
             <p className="text-gray-500">{emptyMessage.primary}</p>

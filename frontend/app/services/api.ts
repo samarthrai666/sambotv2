@@ -88,36 +88,16 @@ export const executeSignal = async (signalId: string) => {
 
 export const fetchMarketData = async (): Promise<MarketData> => {
   try {
-    // You'll need to implement this endpoint in your backend
     const response = await apiClient.get('/market/data');
     return response.data;
   } catch (error) {
-    console.error('Error fetching market data:', error);
-    
-    // Fallback to mock data if the API fails
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const isMarketOpen = (hours > 9 || (hours === 9 && minutes >= 15)) && hours < 15 || (hours === 15 && minutes <= 30);
-    
-    return {
-      nifty: {
-        price: 23412.65,
-        change: 142.50,
-        changePercent: 0.61
-      },
-      banknifty: {
-        price: 48723.90,
-        change: -104.80,
-        changePercent: -0.21
-      },
-      marketStatus: isMarketOpen ? 'open' : 'closed',
-      marketOpenTime: '09:15:00',
-      marketCloseTime: '15:30:00',
-      serverTime: now.toISOString()
-    };
+    console.error('❌ Error fetching market data:', error);
+
+    // Throw an error to be caught and handled in UI
+    throw new Error('Failed to fetch market data. Please try again later.');
   }
 };
+
 
 export const fetchAvailableSignals = async () => {
   try {

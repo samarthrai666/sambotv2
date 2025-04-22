@@ -5,6 +5,7 @@ export default function UploadPDF() {
   const [file, setFile] = useState<File | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [analysis, setAnalysis] = useState<any>(null)
 
   const handleUpload = async () => {
     if (!file) {
@@ -13,22 +14,36 @@ export default function UploadPDF() {
     }
 
     setIsUploading(true)
-    setStatus('Uploading...')
+    setStatus('Uploading and analyzing PDF...')
+    setAnalysis(null)
 
     try {
       const formData = new FormData()
       formData.append('file', file)
 
-      const res = await fetch('http://localhost:8000/upload-pdf', {
+      // Make sure this URL matches your backend server
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${API_URL}/upload-pdf`, {
         method: 'POST',
         body: formData,
       })
 
+      if (!res.ok) {
+        throw new Error(`Server responded with status: ${res.status}`)
+      }
+
       const data = await res.json()
-      setStatus(data.status || data.error || 'Upload successful')
+      console.log('Response data:', data)
+      
+      if (data.status === 'success') {
+        setStatus('PDF analysis completed successfully!')
+        setAnalysis(data.analysis)
+      } else {
+        setStatus(data.message || 'Upload failed with unknown error')
+      }
     } catch (error) {
-      setStatus('Upload failed. Please try again.')
-      console.error(error)
+      console.error('Upload error:', error)
+      setStatus(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsUploading(false)
     }
@@ -65,19 +80,38 @@ export default function UploadPDF() {
               : 'bg-green-600 hover:bg-green-700'
           }`}
         >
-          {isUploading ? 'Uploading...' : 'Upload'}
+          {isUploading ? 'Processing...' : 'Upload'}
         </button>
       </div>
       
       {status && (
         <div className={`mt-2 text-xs rounded-md p-2 ${
-          status.includes('successful') 
+          status.includes('success') 
             ? 'bg-green-50 text-green-700' 
-            : status === 'Uploading...'
+            : status.includes('Uploading')
               ? 'bg-blue-50 text-blue-700'
               : 'bg-red-50 text-red-700'
         }`}>
           {status}
+        </div>
+      )}
+
+      {/* Display analysis results if available */}
+      {analysis && analysis.gpt_response && (
+        <div className="mt-3 p-3 bg-green-50 rounded-md border border-green-100 text-xs">
+          <h4 className="font-medium mb-1">Analysis Result:</h4>
+          <div className="whitespace-pre-line">{analysis.gpt_response.substring(0, 200)}...</div>
+          <div className="mt-2 text-right">
+            <button 
+              className="text-green-600 hover:text-green-800 text-xs"
+              onClick={() => {
+                // Maybe open a modal or navigate to a page showing full analysis
+                alert("Full analysis is available in the backend data/pre_market_result.json file");
+              }}
+            >
+              View Full Analysis
+            </button>
+          </div>
         </div>
       )}
     </div>
