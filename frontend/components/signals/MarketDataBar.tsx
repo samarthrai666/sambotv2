@@ -11,7 +11,7 @@ interface MarketDataBarProps {
 
 export default function MarketDataBar({ 
   marketData: initialMarketData, 
-  refreshInterval = 50000 // default 5 seconds
+  refreshInterval = 60000 // default 5 seconds
 }: MarketDataBarProps) {
   const [marketData, setMarketData] = useState<MarketData | null>(initialMarketData);
   const [isLoading, setIsLoading] = useState<boolean>(false);

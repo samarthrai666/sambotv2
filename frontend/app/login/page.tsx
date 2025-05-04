@@ -13,7 +13,7 @@ export default function Login() {
     password: '',
     rememberMe: false
   });
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; auth?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Check if user is already logged in
@@ -44,6 +44,11 @@ export default function Login() {
     if (errors[name as keyof typeof errors]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
     }
+    
+    // Clear auth error when any input changes
+    if (errors.auth) {
+      setErrors(prev => ({ ...prev, auth: undefined }));
+    }
   };
 
   const validateForm = () => {
@@ -51,14 +56,10 @@ export default function Login() {
     
     if (!formData.email) {
       newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Invalid email address';
     }
     
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
     }
     
     setErrors(newErrors);
@@ -75,20 +76,30 @@ export default function Login() {
     setIsSubmitting(true);
     
     try {
-      // In a real app, this would call your authentication API
-      // const response = await loginUser(formData);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Store auth token
-      localStorage.setItem('token', 'example-token');
-      
-      // Redirect to selection page
-      router.push('/selection');
+      // Check for hardcoded credentials
+      if (formData.email === 'protrader' && formData.password === 'Shiva@123456') {
+        // Simulate API call delay
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Store auth token
+        localStorage.setItem('token', 'example-token');
+        
+        // Redirect to selection page
+        router.push('/selection');
+      } else {
+        // Show authentication error
+        setErrors(prev => ({ 
+          ...prev, 
+          auth: 'Invalid username or password' 
+        }));
+      }
     } catch (error) {
       console.error('Login error:', error);
       // Handle login error (show toast notification, etc.)
+      setErrors(prev => ({ 
+        ...prev, 
+        auth: 'An error occurred during login. Please try again.' 
+      }));
     } finally {
       setIsSubmitting(false);
     }
@@ -110,20 +121,27 @@ export default function Login() {
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
               <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-green-100">
+                {errors.auth && (
+                  <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+                    {errors.auth}
+                  </div>
+                )}
+                
                 <form className="space-y-6" onSubmit={handleSubmit}>
                   <div>
                     <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                      Email address
+                      Username
                     </label>
                     <div className="mt-1">
                       <input
                         id="email"
                         name="email"
-                        type="email"
-                        autoComplete="email"
+                        type="text"
+                        autoComplete="username"
                         value={formData.email}
                         onChange={handleChange}
                         required
+                        placeholder="Enter username"
                         className={`appearance-none block w-full px-3 py-2 border ${
                           errors.email ? 'border-red-300' : 'border-gray-300'
                         } rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm`}
@@ -147,6 +165,7 @@ export default function Login() {
                         value={formData.password}
                         onChange={handleChange}
                         required
+                        placeholder="Enter password"
                         className={`appearance-none block w-full px-3 py-2 border ${
                           errors.password ? 'border-red-300' : 'border-gray-300'
                         } rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm`}

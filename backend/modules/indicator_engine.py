@@ -5,6 +5,48 @@ import talib
 from scipy import stats
 
 
+def convert_numpy_types(obj):
+    """
+    Recursively convert numpy types to Python native types for JSON serialization.
+    
+    Parameters:
+    -----------
+    obj : Any
+        Object to convert
+        
+    Returns:
+    --------
+    Any: Converted object with no numpy types
+    """
+    import numpy as np
+    
+    # Handle Pandas DataFrame
+    if isinstance(obj, pd.DataFrame):
+        return obj.to_dict('records')
+    
+    # Handle Pandas Series
+    if isinstance(obj, pd.Series):
+        return obj.to_dict()
+    
+    # Handle NumPy scalars
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return convert_numpy_types(obj.tolist())
+    # Handle dictionaries
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    # Handle lists and tuples
+    elif isinstance(obj, (list, tuple)):
+        return [convert_numpy_types(item) for item in obj]
+    # Return as is if no conversion needed
+    return obj
+
+
 class TradingIndicators:
     """
     A comprehensive class for calculating professional trading indicators
@@ -518,9 +560,93 @@ class TradingIndicators:
         return total_score.clip(0, 100)
 
 
-# Example usage
-def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    return TradingIndicators(df).calculate_all()
+# Modified to return JSON-serializable format
+def calculate_indicators(data) -> Dict:
+    """
+    Calculate technical indicators and return in a JSON-serializable format
+    
+    Parameters:
+    -----------
+    data : pd.DataFrame or dict
+        Market data
+        
+    Returns:
+    --------
+    dict: Dictionary with indicators in a JSON-serializable format
+    """
+    try:
+        # Get the full DataFrame of indicators
+        indicator_df = TradingIndicators(data).calculate_all()
+        
+        # For better performance and readability, extract just the latest data
+        latest = indicator_df.iloc[-1].copy()
+        
+        # Create a structured dictionary
+        result = {
+            "trend": {
+                "sma_20": float(latest.get('sma_20', 0) or 0),
+                "sma_50": float(latest.get('sma_50', 0) or 0),
+                "sma_200": float(latest.get('sma_200', 0) or 0),
+                "ema_9": float(latest.get('ema_9', 0) or 0),
+                "ema_21": float(latest.get('ema_21', 0) or 0),
+                "ema_55": float(latest.get('ema_55', 0) or 0)
+            },
+            "momentum": {
+                "rsi_14": float(latest.get('rsi_14', 0) or 0),
+                "rsi_2": float(latest.get('rsi_2', 0) or 0),
+                "macd": float(latest.get('macd', 0) or 0),
+                "macd_signal": float(latest.get('macd_signal', 0) or 0),
+                "macd_hist": float(latest.get('macd_hist', 0) or 0),
+                "adx": float(latest.get('adx', 0) or 0)
+            },
+            "volatility": {
+                "atr_14": float(latest.get('atr_14', 0) or 0),
+                "bbands_upper": float(latest.get('bbands_upper', 0) or 0),
+                "bbands_middle": float(latest.get('bbands_middle', 0) or 0),
+                "bbands_lower": float(latest.get('bbands_lower', 0) or 0),
+                "bb_width": float(latest.get('bb_width', 0) or 0)
+            },
+            "volume": {
+                "obv": float(latest.get('obv', 0) or 0),
+                "cmf": float(latest.get('cmf', 0) or 0),
+                "rel_volume": float(latest.get('rel_volume', 0) or 0)
+            },
+            "signals": {
+                "buy_signal_ema_cross": bool(latest.get('buy_signal_ema_cross', 0)),
+                "sell_signal_ema_cross": bool(latest.get('sell_signal_ema_cross', 0)),
+                "buy_signal_macd": bool(latest.get('buy_signal_macd', 0)),
+                "sell_signal_macd": bool(latest.get('sell_signal_macd', 0)),
+                "overbought": bool(latest.get('overbought', 0)),
+                "oversold": bool(latest.get('oversold', 0))
+            },
+            "market_info": {
+                "market_regime": str(latest.get('market_regime', 'neutral')),
+                "trend_strength": float(latest.get('trend_strength', 0) or 0)
+            },
+            "price": {
+                "current": float(latest.get('close', 0) or 0),
+                "open": float(latest.get('open', 0) or 0),
+                "high": float(latest.get('high', 0) or 0),
+                "low": float(latest.get('low', 0) or 0)
+            }
+        }
+        
+        # Convert any remaining NumPy types to Python native types
+        return convert_numpy_types(result)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "error": str(e),
+            "trend": {},
+            "momentum": {},
+            "volatility": {},
+            "volume": {},
+            "signals": {},
+            "market_info": {},
+            "price": {}
+        }
 
 
 if __name__ == "__main__":
@@ -537,7 +663,9 @@ if __name__ == "__main__":
     result = calculate_indicators(data)
 
     print("✅ Indicator Calculation Done:")
-    print(result.tail())
+    print(result)
 
-    result.to_csv("output_indicators.csv")
-    print("📁 Saved to output_indicators.csv")
+    # For full DataFrame output (optional)
+    # full_df = TradingIndicators(data).calculate_all()
+    # full_df.to_csv("output_indicators.csv")
+    # print("📁 Saved to output_indicators.csv")

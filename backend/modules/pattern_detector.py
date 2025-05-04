@@ -3,6 +3,50 @@ import pandas as pd
 import numpy as np
 from typing import Dict, Union, Any
 
+
+def convert_numpy_types(obj):
+    """
+    Recursively convert numpy types to Python native types for JSON serialization.
+    
+    Parameters:
+    -----------
+    obj : Any
+        Object to convert
+        
+    Returns:
+    --------
+    Any: Converted object with no numpy types
+    """
+    import numpy as np
+    import pandas as pd
+    
+    # Handle Pandas DataFrame
+    if isinstance(obj, pd.DataFrame):
+        return obj.to_dict('records')
+    
+    # Handle Pandas Series
+    if isinstance(obj, pd.Series):
+        return obj.to_dict()
+    
+    # Handle NumPy scalars
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return convert_numpy_types(obj.tolist())
+    # Handle dictionaries
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    # Handle lists and tuples
+    elif isinstance(obj, (list, tuple)):
+        return [convert_numpy_types(item) for item in obj]
+    # Return as is if no conversion needed
+    return obj
+
+
 def detect_patterns(data: Union[pd.DataFrame, Dict[str, Any]]) -> Dict[str, Any]:
     """
     Detect chart patterns in price data
@@ -132,7 +176,7 @@ def detect_patterns(data: Union[pd.DataFrame, Dict[str, Any]]) -> Dict[str, Any]
         elif at_resistance:
             pattern_zone = "at_resistance"
         
-        return {
+        result = {
             "pattern_summary": {
                 "bullish_patterns": bullish_patterns,
                 "bearish_patterns": bearish_patterns,
@@ -145,6 +189,10 @@ def detect_patterns(data: Union[pd.DataFrame, Dict[str, Any]]) -> Dict[str, Any]
             "at_support": at_support,
             "at_resistance": at_resistance
         }
+        
+        # Convert any NumPy types to Python native types
+        return convert_numpy_types(result)
+        
     except Exception as e:
         import traceback
         traceback.print_exc()

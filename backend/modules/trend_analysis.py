@@ -4,6 +4,40 @@ from typing import Dict, List, Tuple, Optional, Union
 from enum import Enum
 
 
+def convert_numpy_types(obj):
+    """
+    Recursively convert numpy types to Python native types for JSON serialization.
+    Compatible with all versions of NumPy.
+    
+    Parameters:
+    -----------
+    obj : Any
+        Object to convert
+        
+    Returns:
+    --------
+    Any: Converted object with no numpy types
+    """
+    import numpy as np
+    
+    # Handle NumPy scalars - using just the base types for maximum compatibility
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return convert_numpy_types(obj.tolist())
+    # Handle dictionaries
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    # Handle lists and tuples
+    elif isinstance(obj, (list, tuple)):
+        return [convert_numpy_types(item) for item in obj]
+    # Return as is if no conversion needed
+    return obj
+
 class TrendType(Enum):
     """Enum for trend types"""
     STRONG_UPTREND = "strong_uptrend"
@@ -603,13 +637,16 @@ class TrendDetector:
         elif strength_change < -5:
             trend_momentum = "weakening"
         
-        return {
+        result = {
             'current_trends': latest_trends,
             'metrics': latest_metrics,
             'trends_aligned': trends_aligned,
             'trend_momentum': trend_momentum,
             'recent_trend_change': recent_change
         }
+        
+        # Convert all NumPy types to Python native types before returning
+        return convert_numpy_types(result)
 
 
 # Example usage
@@ -619,10 +656,9 @@ def analyze_trends(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_trend_summary(df: pd.DataFrame, lookback: int = 5) -> Dict:
     """Get a summary of trend analysis from price data"""
-    return TrendDetector(df).get_trend_summary(lookback)
+    return convert_numpy_types(TrendDetector(df).get_trend_summary(lookback))
 
 
-# Add this function to support the expected interface in build_final_signal
 def detect_trend(data):
     """
     Adapter function to match the expected interface in build_final_signal.py
@@ -634,7 +670,7 @@ def detect_trend(data):
         
     Returns:
     --------
-    dict: Trend analysis summary
+    dict: Trend analysis summary with all numpy types converted to native Python types
     """
     try:
         import pandas as pd
@@ -655,21 +691,22 @@ def detect_trend(data):
             # Get trend summary with the DataFrame
             summary = get_trend_summary(df)
             
-            # Extract key information for the simplified return format
-            trend = summary['current_trends']['consolidated']
-            strength = float(summary['metrics']['trend_strength'] / 100.0)  # Scale to 0-1
-            
-            return {
-                "trend": trend,
-                "strength": strength,
+            # Convert all NumPy types in the summary to Python native types
+            result = {
+                "trend": summary['current_trends']['consolidated'],
+                "strength": float(summary['metrics']['trend_strength'] / 100.0),  # Scale to 0-1
                 "market_structure": summary['metrics']['market_structure'],
                 "duration": int(summary['metrics']['trend_duration']),
                 "momentum": summary['trend_momentum'],
-                "aligned": summary['trends_aligned'],
+                "aligned": bool(summary['trends_aligned']),
                 "short_term": summary['current_trends']['short_term'],
                 "medium_term": summary['current_trends']['medium_term'],
                 "long_term": summary['current_trends']['long_term']
             }
+            
+            # Convert any remaining NumPy types in the result
+            return convert_numpy_types(result)
+            
         elif isinstance(data, pd.DataFrame):
             # Direct DataFrame input
             df = data
@@ -677,21 +714,22 @@ def detect_trend(data):
             # Get trend summary
             summary = get_trend_summary(df)
             
-            # Extract key information for the simplified return format
-            trend = summary['current_trends']['consolidated']
-            strength = float(summary['metrics']['trend_strength'] / 100.0)  # Scale to 0-1
-            
-            return {
-                "trend": trend,
-                "strength": strength,
+            # Convert all NumPy types in the summary to Python native types
+            result = {
+                "trend": summary['current_trends']['consolidated'],
+                "strength": float(summary['metrics']['trend_strength'] / 100.0),  # Scale to 0-1
                 "market_structure": summary['metrics']['market_structure'],
                 "duration": int(summary['metrics']['trend_duration']),
                 "momentum": summary['trend_momentum'],
-                "aligned": summary['trends_aligned'],
+                "aligned": bool(summary['trends_aligned']),
                 "short_term": summary['current_trends']['short_term'],
                 "medium_term": summary['current_trends']['medium_term'],
                 "long_term": summary['current_trends']['long_term']
             }
+            
+            # Convert any remaining NumPy types in the result
+            return convert_numpy_types(result)
+            
         else:
             # Unsupported data type
             return {
@@ -707,3 +745,9 @@ def detect_trend(data):
             "strength": 0.5,
             "error": str(e)
         }
+
+
+# Helper function for JSON serialization in other modules
+def json_safe(obj):
+    """Make any object JSON serializable by converting NumPy types"""
+    return convert_numpy_types(obj)
