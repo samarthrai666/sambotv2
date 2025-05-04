@@ -183,21 +183,19 @@ async def get_intraday_signals():
 async def get_equity_signals():
     """Get available equity swing trading signals"""
     try:
-        print("\n===== PROCESSING EQUITY SIGNALS =====")
-        all_signals = []
-        
         print("Fetching equity swing signals...")
         result = await strategy_map["equity_swing"](auto_execute=False)
+        
+        formatted_signals = []
         if result and "non_executed" in result and result["non_executed"]:
             for signal in result["non_executed"]:
-                # Extract stock symbol from the signal
-                symbol_parts = signal.get("symbol", "").split("-")
-                stock_symbol = symbol_parts[1] if len(symbol_parts) > 1 else "EQUITY"
-                formatted_signal = format_equity_signal_for_frontend(signal, stock_symbol, "swing")
-                all_signals.append(formatted_signal)
+                # Extract symbol from the full symbol string
+                symbol = signal.get("symbol", "UNKNOWN")
+                formatted_signal = format_equity_signal_for_frontend(signal, symbol, "swing")
+                formatted_signals.append(formatted_signal)
         
-        print(f"Found {len(all_signals)} equity signals")
-        return all_signals
+        print(f"Found {len(formatted_signals)} equity signals")
+        return formatted_signals
     except Exception as e:
         print(f"[ERROR] Failed to get equity signals: {str(e)}")
         import traceback
@@ -485,48 +483,48 @@ def format_equity_signal_for_frontend(signal, symbol, strategy):
     action = signal.get("signal", "HOLD")
     
     # Format expiry date (for equity swing, use expected exit date)
-    expiry_date = signal.get("expected_exit_date", "N/A")
+    expiry_date = signal.get("expected_holding_period", "N/A")
     
     # Map confidence to a percentage
     confidence = int(signal.get("confidence", 0.7) * 100)
     
-    # Extract indicators from the signal
-    indicators = []
-    if "indicator_snapshot" in signal:
-        for key, value in signal["indicator_snapshot"].items():
-            if isinstance(value, bool) and value:
-                indicators.append(key.upper())
-            elif isinstance(value, str):
-                indicators.append(f"{key.upper()} ({value})")
-    
-    # Extract patterns
-    patterns = []
+    # Extract first pattern for setup_type
+    setup_type = "Reversal"
     if "pattern_analysis" in signal and "patterns_detected" in signal["pattern_analysis"]:
         patterns = signal["pattern_analysis"]["patterns_detected"]
+        if patterns and len(patterns) > 0:
+            setup_type = patterns[0]
+    
+    # Calculate potential gain
+    entry_price = signal.get("entry", 0)
+    target_price = signal.get("target", 0)
+    potential_gain = 0
+    if entry_price > 0:
+        potential_gain = abs((target_price - entry_price) / entry_price) * 100
+    
+    # Clean up symbol - remove the exchange prefix
+    clean_symbol = symbol
+    if ":" in symbol:
+        clean_symbol = symbol.split(":")[-1]
+    if "-" in clean_symbol:
+        clean_symbol = clean_symbol.split("-")[-1]
     
     # Create frontend-compatible signal
     return {
         "id": signal_id,
-        "symbol": symbol,
-        "instrumentType": "Equity",
+        "symbol": clean_symbol,
         "action": action,
-        "price": signal.get("entry", 0),
+        "entry_price": signal.get("entry", 0),
         "target_price": signal.get("target", 0),
         "stop_loss": signal.get("stop_loss", 0),
-        "quantity": 10,  # Default quantity for equity
-        "potential_return": abs((signal.get("target", 0) - signal.get("entry", 0)) / signal.get("entry", 1)),
-        "risk_reward_ratio": signal.get("rrr", 1.5),
+        "risk_reward": signal.get("rrr", 0),
+        "potential_gain": potential_gain,
         "timeframe": signal.get("timeframe", "daily"),
-        "confidence_score": confidence,
-        "indicators": indicators[:4],  # Limit to top 4 indicators
-        "patterns": patterns[:2],     # Limit to top 2 patterns
-        "strategy": strategy,
-        "aiAnalysis": signal.get("ai_opinion", {}).get("reasoning", ""),
-        "notes": f"{symbol} {strategy} signal with {signal.get('trend', 'neutral')} trend",
-        "timestamp": timestamp,
-        "executed": False,
-        "expiryDate": expiry_date,
-        "holdingPeriod": signal.get("expected_holding_period", "N/A")
+        "confidence": confidence,
+        "setup_type": setup_type,
+        "sector": signal.get("sector", "Unknown"),
+        "analysis": signal.get("ai_opinion", {}).get("reasoning", ""),
+        "executed": False
     }
 
 # Placeholder implementations for the missing functions

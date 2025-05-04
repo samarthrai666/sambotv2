@@ -3,10 +3,33 @@
 import { useState } from 'react';
 
 // Define types
+// Updated SectorType with the complete list provided
 type EquitySwingMode = 'momentum' | 'breakout' | 'reversal';
-type SectorType = 'IT' | 'Banking' | 'Auto' | 'Pharma' | 'FMCG';
+type SectorType = 
+  | 'Automobile and Auto Components'
+  | 'Capital Goods'
+  | 'Chemicals'
+  | 'Construction'
+  | 'Construction Materials'
+  | 'Consumer Durables'
+  | 'Consumer Services'
+  | 'Diversified'
+  | 'Fast Moving Consumer Goods'
+  | 'Financial Services'
+  | 'Forest Materials'
+  | 'Healthcare'
+  | 'Information Technology'
+  | 'Media Entertainment & Publication'
+  | 'Metals & Mining'
+  | 'Oil Gas & Consumable Fuels'
+  | 'Power'
+  | 'Realty'
+  | 'Services'
+  | 'Telecommunication'
+  | 'Textiles';
+
 type ScanFrequency = 'daily' | 'weekly' | 'monthly';
-type MarketCapType = 'largecap' | 'midcap' | 'smallcap'; // New market cap type
+type MarketCapType = 'largecap' | 'midcap' | 'smallcap'; // Market cap type
 
 interface SwingEquityData {
   enabled: boolean;
@@ -14,7 +37,7 @@ interface SwingEquityData {
   max_stocks: number;
   sectors: SectorType[];
   scan_frequency: ScanFrequency;
-  market_caps: MarketCapType[]; // New field for market caps
+  market_caps: MarketCapType[]; // Field for market caps
 }
 
 interface SwingEquityProps {
@@ -98,6 +121,31 @@ export default function SwingEquityTrading({ data, onChange }: SwingEquityProps)
       scan_frequency: frequency
     });
   };
+
+  // Complete list of sectors from the provided list
+  const allSectors: SectorType[] = [
+    'Automobile and Auto Components',
+    'Capital Goods',
+    'Chemicals',
+    'Construction',
+    'Construction Materials',
+    'Consumer Durables',
+    'Consumer Services',
+    'Diversified',
+    'Fast Moving Consumer Goods',
+    'Financial Services',
+    'Forest Materials',
+    'Healthcare',
+    'Information Technology',
+    'Media Entertainment & Publication',
+    'Metals & Mining',
+    'Oil Gas & Consumable Fuels',
+    'Power',
+    'Realty',
+    'Services',
+    'Telecommunication',
+    'Textiles'
+  ];
 
   return (
     <div className={`bg-white shadow rounded-lg overflow-hidden border ${data.enabled ? 'border-blue-100' : 'border-gray-200'}`}>
@@ -269,25 +317,27 @@ export default function SwingEquityTrading({ data, onChange }: SwingEquityProps)
             </div>
           </div>
 
-          {/* Sector Preferences */}
+          {/* Sector Preferences - Updated with full list */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">
               Sector Preferences
             </label>
-            <div className="flex flex-wrap gap-1">
-              {(['IT', 'Banking', 'Auto', 'Pharma', 'FMCG'] as SectorType[]).map(sector => (
-                <div 
-                  key={sector}
-                  className={`px-2 py-1 text-xs rounded-full border cursor-pointer ${
-                    data.sectors.includes(sector) 
-                      ? 'bg-blue-50 text-blue-700 border-blue-200' 
-                      : 'bg-gray-50 text-gray-700 border-gray-200'
-                  }`}
-                  onClick={() => handleSectorToggle(sector)}
-                >
-                  {sector}
-                </div>
-              ))}
+            <div className="max-h-60 overflow-y-auto p-2 border border-gray-200 rounded-md">
+              <div className="flex flex-wrap gap-1">
+                {allSectors.map(sector => (
+                  <div 
+                    key={sector}
+                    className={`px-2 py-1 m-1 text-xs rounded-full border cursor-pointer ${
+                      data.sectors.includes(sector) 
+                        ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                        : 'bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
+                    onClick={() => handleSectorToggle(sector)}
+                  >
+                    {sector}
+                  </div>
+                ))}
+              </div>
             </div>
             <p className="text-xs text-gray-500">Monitoring top stocks in these sectors</p>
           </div>

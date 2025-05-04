@@ -11,6 +11,32 @@ export interface OptionsPreferences {
 }
 
 /**
+ * Updated Sector Type with full list
+ */
+export type SectorType = 
+  | 'Automobile and Auto Components'
+  | 'Capital Goods'
+  | 'Chemicals'
+  | 'Construction'
+  | 'Construction Materials'
+  | 'Consumer Durables'
+  | 'Consumer Services'
+  | 'Diversified'
+  | 'Fast Moving Consumer Goods'
+  | 'Financial Services'
+  | 'Forest Materials'
+  | 'Healthcare'
+  | 'Information Technology'
+  | 'Media Entertainment & Publication'
+  | 'Metals & Mining'
+  | 'Oil Gas & Consumable Fuels'
+  | 'Power'
+  | 'Realty'
+  | 'Services'
+  | 'Telecommunication'
+  | 'Textiles';
+
+/**
  * Intraday Equity trading preferences
  */
 export interface IntradayEquityPreferences {
@@ -19,7 +45,7 @@ export interface IntradayEquityPreferences {
   max_stocks: number;
   timeframes: ('1m' | '5m' | '15m' | '1h')[];
   risk_per_trade: '0.5' | '1.0' | '1.5' | '2.0';
-  sectors: ('IT' | 'Auto' | 'Pharma' | 'FMCG' | 'Banking' | 'Infra' | 'Energy')[];
+  sectors: SectorType[];
   stock_universe: ('nifty50' | 'fno' | 'midcap' | 'penny' | 'custom')[];
   smart_filter: boolean;
 }
@@ -39,7 +65,7 @@ export interface EquitySwingPreferences {
   enabled: boolean;
   modes: ('momentum' | 'breakout' | 'reversal')[];
   max_stocks: number;
-  sectors: ('IT' | 'Banking' | 'Auto' | 'Pharma' | 'FMCG')[];
+  sectors: SectorType[];
   scan_frequency: 'daily' | 'weekly' | 'monthly';
   market_caps: ('largecap' | 'midcap' | 'smallcap')[];
 }
@@ -166,4 +192,14 @@ export interface ExecuteSignalResponse {
   execution_time: string;
   execution_price: number;
   quantity: number;
+}
+
+/**
+ * Log entry for activity log
+ */
+export interface LogEntry {
+  id: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  message: string;
+  timestamp: string;
 }

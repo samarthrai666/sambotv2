@@ -14,7 +14,29 @@ type IndexType = 'NIFTY' | 'BANKNIFTY';
 type ModeType = 'scalp' | 'swing' | 'longterm';
 type EquitySwingMode = 'momentum' | 'breakout' | 'reversal';
 type EquityIntradayMode = 'opening_range' | 'trend_following' | 'mean_reversion';
-type SectorType = 'IT' | 'Banking' | 'Auto' | 'Pharma' | 'FMCG';
+// Updated comprehensive sector list
+type SectorType = 
+  | 'Automobile and Auto Components'
+  | 'Capital Goods'
+  | 'Chemicals'
+  | 'Construction'
+  | 'Construction Materials'
+  | 'Consumer Durables'
+  | 'Consumer Services'
+  | 'Diversified'
+  | 'Fast Moving Consumer Goods'
+  | 'Financial Services'
+  | 'Forest Materials'
+  | 'Healthcare'
+  | 'Information Technology'
+  | 'Media Entertainment & Publication'
+  | 'Metals & Mining'
+  | 'Oil Gas & Consumable Fuels'
+  | 'Power'
+  | 'Realty'
+  | 'Services'
+  | 'Telecommunication'
+  | 'Textiles';
 type Timeframe = '1m' | '5m' | '15m' | '1h';
 type RiskLevel = '0.5' | '1.0' | '1.5' | '2.0';
 type ScanFrequency = 'daily' | 'weekly' | 'monthly';
@@ -88,7 +110,8 @@ export default function SelectionPage() {
         max_stocks: 3,
         timeframes: ['5m', '15m'],
         risk_per_trade: '1.0',
-        sectors: ['IT', 'Banking', 'Pharma'],
+        // Updated with new sector format
+        sectors: ['Information Technology', 'Financial Services', 'Healthcare'],
         stock_universe: ['nifty50', 'fno'],
         smart_filter: true
       }
@@ -99,7 +122,8 @@ export default function SelectionPage() {
         enabled: false,
         modes: ['momentum', 'breakout'],
         max_stocks: 5,
-        sectors: ['IT', 'Banking', 'Auto'],
+        // Updated with new sector format
+        sectors: ['Information Technology', 'Financial Services', 'Automobile and Auto Components'],
         scan_frequency: 'weekly',
         market_caps: ['largecap', 'midcap']
       }
