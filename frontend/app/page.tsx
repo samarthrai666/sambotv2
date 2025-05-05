@@ -136,7 +136,7 @@ export default function Home() {
       name: "Rahul Sharma",
       role: "Day Trader",
       image: "/assets/testimonial1.jpg",
-      text: "SamarAI's precision signals have transformed my trading routine. I've increased my success rate by 36% in just 3 months."
+      text: "Samurai's precision signals have transformed my trading routine. I've increased my success rate by 36% in just 3 months."
     },
     {
       name: "Priya Patel",
@@ -219,7 +219,7 @@ export default function Home() {
               <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
                 <span className="block">Trade smarter with</span>
                 <span className="block text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-teal-500 animate-gradient">
-                  SamarAI
+                  Samurai
                 </span>
               </h1>
               <p className="mt-4 text-lg text-gray-600 max-w-xl">
@@ -273,7 +273,7 @@ export default function Home() {
                     <div className="h-3 w-3 rounded-full bg-yellow-400 mr-2"></div>
                     <div className="h-3 w-3 rounded-full bg-green-400"></div>
                   </div>
-                  <div className="text-white text-sm font-medium">SamarAI Trading Dashboard</div>
+                  <div className="text-white text-sm font-medium">Samurai Trading Dashboard</div>
                   <div className="text-white text-xs opacity-70">LIVE</div>
                 </div>
                 
@@ -400,7 +400,7 @@ export default function Home() {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-900">SamarAI Signal</p>
+                    <p className="text-xs font-medium text-gray-900">Samurai Signal</p>
                     <p className="text-xs text-gray-600">BankNifty: Buy at 46350</p>
                   </div>
                 </div>
@@ -499,7 +499,7 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
               <span className="inline-block relative">
-                How SamarAI Works
+                How Samurai Works
                 <span className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-teal-500"></span>
               </span>
             </h2>
@@ -513,7 +513,7 @@ export default function Home() {
                   {
                     icon: '📥',
                     title: 'Data Collection',
-                    description: 'SamarAI continuously gathers data from multiple market sources, news, and sentiment indicators.'
+                    description: 'Samurai continuously gathers data from multiple market sources, news, and sentiment indicators.'
                   },
                   {
                     icon: '⚙️',
@@ -550,7 +550,7 @@ export default function Home() {
               >
                 <span className="absolute top-0 left-0 w-full h-0 bg-green-500 transition-all duration-300 group-hover:h-full"></span>
                 <span className="relative flex items-center">
-                  <span>Start Trading with SamarAI</span>
+                  <span>Start Trading with Samurai</span>
                   <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
                   </svg>
@@ -574,7 +574,7 @@ export default function Home() {
                 </h2>
                 
                 <p className="text-gray-600 mb-6">
-                  SamarAI doesn't just provide trading signals - it gives you deep market insights that help you understand the 'why' behind every recommendation.
+                  Samurai doesn't just provide trading signals - it gives you deep market insights that help you understand the 'why' behind every recommendation.
                 </p>
                 
                 <div className="space-y-4">
@@ -667,7 +667,7 @@ export default function Home() {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-3xl font-bold mb-4">Ready to transform your trading?</h2>
             <p className="text-green-100 mb-8 max-w-3xl mx-auto">
-              Join thousands of traders who are already leveraging SamarAI for consistent profits and reduced stress.
+              Join thousands of traders who are already leveraging Samurai for consistent profits and reduced stress.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button

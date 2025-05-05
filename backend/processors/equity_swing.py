@@ -1,87 +1,65 @@
-# backend/processors/equity_swing.py
-from datetime import datetime
+"""
+Equity swing trading processor module for trading signals
+
+This module handles the generation of swing trading signals for equity stocks.
+"""
+from datetime import datetime, timedelta
 import random
 import time
-from typing import Dict, Any, List
 import os
-import json
+from typing import Dict, Any, List, Optional
+from utils.filternsestocks import filter_stocks
+import pandas as pd
+import numpy as np
 
-# Import stock list utility
-from utils.filternsestocks import get_stocks_by_filters
-
-async def process(auto_execute: bool = False, log_enabled: bool = True, trading_preferences: Dict = None) -> Dict[str, Any]:
+async def process(auto_execute: bool = False, log_enabled: bool = True) -> Dict[str, Any]:
     """
-    Process equity swing trading signals based on user preferences
+    Process equity swing trading signals
     
     Args:
         auto_execute (bool): Whether to automatically execute the generated signals
         log_enabled (bool): Whether to enable logging
-        trading_preferences (Dict, optional): The user's trading preferences
         
     Returns:
         Dict[str, Any]: Dictionary containing executed and non-executed signals
     """
-    print(f"🔎 Running equity swing processor at {datetime.now().isoformat()}")
-    print(f"Current working directory: {os.getcwd()}")
+    if log_enabled:
+        print(f"🔎 Running equity swing processor at {datetime.now().isoformat()}")
     
-    # Load trading preferences from parameter or file
-    if not trading_preferences:
-        try:
-            # Try to load from a preferences file
-            prefs_path = "data/trading_preferences.json"
-            if os.path.exists(prefs_path):
-                with open(prefs_path, "r") as f:
-                    trading_preferences = json.load(f)
-                    print("Loaded trading preferences from file")
-            else:
-                print(f"Trading preferences file not found at {prefs_path}")
-                prefs_paths_to_try = [
-                    "./data/trading_preferences.json",
-                    "../data/trading_preferences.json",
-                    "trading_preferences.json",
-                    "./trading_preferences.json"
-                ]
-                
-                for path in prefs_paths_to_try:
-                    if os.path.exists(path):
-                        print(f"Found preferences at alternate location: {path}")
-                        with open(path, "r") as f:
-                            trading_preferences = json.load(f)
-                            print("Loaded trading preferences from alternate location")
-                            break
-                
-                if not trading_preferences:
-                    print("No trading preferences found")
-                    return {
-                        "executed": [],
-                        "non_executed": [],
-                        "timestamp": datetime.now().isoformat(),
-                        "processor": "equity_swing",
-                        "error": "Trading preferences file not found"
+    # Get user preferences from stored configuration
+    prefs_path = os.path.join(os.path.dirname(__file__), "../data/preferences.json")
+    preferences = {}
+    try:
+        if os.path.exists(prefs_path):
+            import json
+            with open(prefs_path, 'r') as f:
+                preferences = json.load(f)
+        else:
+            # If no stored preferences, use default
+            preferences = {
+                "equity": {
+                    "enabled": True,
+                    "swing": {
+                        "enabled": True,
+                        "modes": ["momentum", "breakout"],
+                        "max_stocks": 5,
+                        "sectors": [],
+                        "scan_frequency": "weekly",
+                        "market_caps": []
                     }
-        except Exception as e:
-            print(f"Error loading trading preferences: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return {
-                "executed": [],
-                "non_executed": [],
-                "timestamp": datetime.now().isoformat(),
-                "processor": "equity_swing",
-                "error": str(e)
+                }
             }
+    except Exception as e:
+        print(f"[WARNING] Error loading preferences: {str(e)}")
     
-    # Log the trading preferences
-    print("Trading preferences:")
-    print(json.dumps(trading_preferences, indent=2))
+    # Filter stocks based on user preferences
+    filtered_stocks = filter_stocks(preferences)
     
-    # Extract specific preferences
-    equity_prefs = trading_preferences.get("equity", {})
-    swing_prefs = equity_prefs.get("swing", {})
+    if log_enabled:
+        print(f"📊 Found {len(filtered_stocks)} stocks matching user preferences")
     
-    # If swing trading is not enabled, return empty results
-    if not equity_prefs.get("enabled", False) or not swing_prefs.get("enabled", False):
-        print("Equity swing trading is disabled in preferences")
+    # If no stocks match the criteria, return empty signals
+    if not filtered_stocks:
         return {
             "executed": [],
             "non_executed": [],
@@ -89,127 +67,92 @@ async def process(auto_execute: bool = False, log_enabled: bool = True, trading_
             "processor": "equity_swing"
         }
     
-    # Extract swing trading settings from preferences
-    modes = swing_prefs.get("modes", [])
-    max_stocks = swing_prefs.get("max_stocks", 0)  # Use value from trading preferences
-    selected_sectors = swing_prefs.get("sectors", [])
-    market_caps = swing_prefs.get("market_caps", [])
-    
-    # Print detailed debug info
-    print("\n=== Swing Trading Configuration ===")
-    print(f"Modes: {modes}")
-    print(f"Max stocks: {max_stocks}")
-    print(f"Selected sectors: {selected_sectors}")
-    print(f"Market caps: {market_caps}")
-    print("====================================\n")
-    
-    # Validate required settings
-    if not modes or max_stocks <= 0 or not selected_sectors or not market_caps:
-        print("Incomplete swing trading preferences")
-        print(f"Modes: {modes}, Max stocks: {max_stocks}, Sectors: {selected_sectors}, Market caps: {market_caps}")
-        return {
-            "executed": [],
-            "non_executed": [],
-            "timestamp": datetime.now().isoformat(),
-            "processor": "equity_swing",
-            "error": "Incomplete swing trading preferences"
-        }
-    
-    # Get filtered stock list based on sectors and market caps from CSV
-    try:
-        print("\n=== Filtering Stocks ===")
-        print(f"Calling get_stocks_by_filters with:")
-        print(f"  Sectors: {selected_sectors}")
-        print(f"  Market caps: {market_caps}")
-        print(f"  Limit: {max_stocks * 3}")
-        
-        # Request max_stocks * 3 to allow for filtering/randomization
-        filter_limit = max_stocks * 3
-        filtered_stocks = get_stocks_by_filters(
-            sectors=selected_sectors,
-            market_caps=market_caps,
-            limit=filter_limit
-        )
-        
-        print(f"\nFiltered stocks result: {len(filtered_stocks)} stocks")
-        if filtered_stocks:
-            print("Sample of filtered stocks:")
-            for i, stock in enumerate(filtered_stocks[:min(5, len(filtered_stocks))]):
-                print(f"  {i+1}. {stock.get('symbol')} - {stock.get('sector')} ({stock.get('market_cap_category')})")
-        else:
-            print("No stocks found matching criteria")
-            return {
-                "executed": [],
-                "non_executed": [],
-                "timestamp": datetime.now().isoformat(),
-                "processor": "equity_swing",
-                "error": "No stocks found matching criteria"
-            }
-    except Exception as e:
-        print(f"Error getting filtered stocks: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return {
-            "executed": [],
-            "non_executed": [],
-            "timestamp": datetime.now().isoformat(),
-            "processor": "equity_swing",
-            "error": f"Error getting filtered stocks: {str(e)}"
-        }
-    
+    # Generate equity swing signals based on filtered stocks
     signals = []
     
-    # Generate signals based on the selected modes and stocks
-    print("\n=== Generating Signals ===")
-    for i, stock in enumerate(filtered_stocks):
-        try:
-            symbol = stock['symbol']
-            sector = stock.get('sector', "Unknown")
-            market_cap = stock.get('market_cap_category', "Unknown")
+    for stock in filtered_stocks:
+        # Skip if stock data is incomplete
+        if not all(k in stock for k in ["symbol", "company", "sector", "market_cap_category"]):
+            continue
             
-            print(f"Processing signal for {symbol} (Sector: {sector}, Market Cap: {market_cap})")
-            
-            # Current price (mock)
-            base_price = 500 + (i * 100)  # Just to create variety
-            current_price = base_price + random.randint(-50, 50)
-            
-            # Generate signals based on selected modes
-            for mode in modes:
-                if mode == "reversal" and random.random() < 0.6:  # 60% chance of generating a reversal signal
-                    signal = generate_reversal_signal(symbol, current_price, sector, market_cap)
-                    if signal:
-                        signals.append(signal)
-                        print(f"  - Generated reversal signal for {symbol}")
-                        
-                elif mode == "momentum" and random.random() < 0.6:
-                    signal = generate_momentum_signal(symbol, current_price, sector, market_cap)
-                    if signal:
-                        signals.append(signal)
-                        print(f"  - Generated momentum signal for {symbol}")
-                        
-                elif mode == "breakout" and random.random() < 0.6:
-                    signal = generate_breakout_signal(symbol, current_price, sector, market_cap)
-                    if signal:
-                        signals.append(signal)
-                        print(f"  - Generated breakout signal for {symbol}")
+        symbol = stock["symbol"]
+        company = stock["company"]
+        sector = stock["sector"]
+        market_cap = stock["market_cap_category"]
         
-        except Exception as e:
-            print(f"Error processing signal for {stock.get('symbol', 'unknown')}: {str(e)}")
-            import traceback
-            traceback.print_exc()
-    
-    # Sort signals by confidence score
-    signals = sorted(signals, key=lambda x: x.get("confidence", 0), reverse=True)
-    
-    # Print generated signals
-    print(f"\nGenerated {len(signals)} signals before limiting")
-    
-    # Limit to max_stocks from trading preferences
-    signals = signals[:max_stocks]
-    
-    print(f"Final signals after limiting to {max_stocks}: {len(signals)}")
-    for i, signal in enumerate(signals):
-        print(f"  {i+1}. {signal.get('symbol')} - {signal.get('signal')} ({signal.get('confidence_score')}%)")
+        # Determine random price points based on stock
+        # In a real implementation, this would fetch actual market data
+        base_price = get_simulated_price(symbol)
+        
+        # Run technical analysis to determine signal type
+        signal_type, confidence = analyze_stock_technicals(symbol, company, sector)
+        
+        # Skip if no actionable signal
+        if signal_type == "NEUTRAL":
+            continue
+            
+        # Calculate entry, target and stop loss based on signal type
+        is_buy = signal_type == "BUY"
+        
+        if is_buy:
+            entry = base_price
+            target = round(entry * (1 + random.uniform(0.05, 0.15)), 2)  # 5-15% upside
+            stop_loss = round(entry * (1 - random.uniform(0.03, 0.08)), 2)  # 3-8% downside
+        else:
+            entry = base_price
+            target = round(entry * (1 - random.uniform(0.05, 0.15)), 2)  # 5-15% downside
+            stop_loss = round(entry * (1 + random.uniform(0.03, 0.08)), 2)  # 3-8% upside
+        
+        # Calculate risk-reward ratio
+        risk = abs(entry - stop_loss)
+        reward = abs(target - entry)
+        rrr = round(reward / risk, 2) if risk > 0 else 0
+        
+        # Generate a set of indicators based on the signal type
+        indicators = generate_technical_indicators(is_buy)
+        
+        # Generate pattern analysis
+        pattern_analysis = generate_pattern_analysis(is_buy)
+        
+        # Calculate expected holding period (3-15 days for swing)
+        days_to_hold = random.randint(3, 15)
+        expected_exit_date = (datetime.now() + timedelta(days=days_to_hold)).strftime("%d %b %Y")
+        
+        # AI opinion simulation
+        ai_opinion = generate_ai_opinion(symbol, company, signal_type, confidence)
+        
+        # Create the signal
+        signal = {
+            "id": f"equity-swing-{symbol.lower()}-{int(time.time())}-{random.randint(1000, 9999)}",
+            "trade_time": datetime.now().isoformat(),
+            "symbol": symbol,
+            "company": company,
+            "sector": sector,
+            "market_cap_category": market_cap,
+            "signal": signal_type,
+            "entry": entry,
+            "target": target,
+            "stop_loss": stop_loss,
+            "rrr": rrr,
+            "trend": "bullish" if is_buy else "bearish",
+            "timeframe": "daily",
+            "confidence": confidence,
+            "indicator_snapshot": indicators,
+            "pattern_analysis": pattern_analysis,
+            "ai_opinion": ai_opinion,
+            "expected_holding_period": f"{days_to_hold} days",
+            "expected_exit_date": expected_exit_date,
+            "potential_gain": round(abs((target - entry) / entry) * 100, 2),
+            # Format for SwingEquitySignals.tsx component
+            "entry_price": entry,
+            "target_price": target,
+            "setup_type": pattern_analysis["patterns_detected"][0] if pattern_analysis["patterns_detected"] else "Technical Setup",
+            "action": "BUY" if is_buy else "SELL",
+            "risk_reward": rrr,
+            "analysis": ai_opinion["reasoning"]
+        }
+        
+        signals.append(signal)
     
     # If auto-execute is enabled, simulate execution for some signals
     executed = []
@@ -217,13 +160,14 @@ async def process(auto_execute: bool = False, log_enabled: bool = True, trading_
     
     if auto_execute and signals:
         # Randomly select signals to execute
-        num_to_execute = random.randint(0, len(signals))
+        num_to_execute = random.randint(0, min(len(signals), 2))
         if num_to_execute > 0:
             to_execute = random.sample(signals, num_to_execute)
             executed = to_execute
             non_executed = [s for s in signals if s not in to_execute]
             
-            print(f"✅ Auto-executed {len(executed)} equity swing signals")
+            if log_enabled:
+                print(f"✅ Auto-executed {len(executed)} equity swing signals")
     
     return {
         "executed": executed,
@@ -232,197 +176,101 @@ async def process(auto_execute: bool = False, log_enabled: bool = True, trading_
         "processor": "equity_swing"
     }
 
-def generate_reversal_signal(symbol, current_price, sector, market_cap):
-    """Generate a reversal pattern signal"""
-    # Simulate a reversal pattern
-    is_bullish_reversal = random.choice([True, False])
+def get_simulated_price(symbol: str) -> float:
+    """Get a simulated price for a stock based on its symbol"""
+    # Use the symbol's string hash to generate a consistent but random-looking price
+    # This ensures the same stock always gets the same base price
+    h = 0
+    for char in symbol:
+        h = (31 * h + ord(char)) & 0xFFFFFFFF
     
-    # Calculate targets and stop loss
-    if is_bullish_reversal:
-        target = current_price * 1.15  # 15% target for reversal
-        stop_loss = current_price * 0.92  # 8% stop loss
+    # Generate a price between 500 and 5000
+    base = (h % 4500) + 500
+    
+    # Add some cents
+    cents = round((h % 99) / 100, 2)
+    
+    return base + cents
+
+def analyze_stock_technicals(symbol: str, company: str, sector: str) -> tuple:
+    """
+    Analyze stock technicals to determine signal type and confidence
+    In a real implementation, this would use actual market data
+    """
+    # Determine signal based on symbol hash to ensure consistent results
+    h = sum(ord(c) for c in symbol)
+    
+    # 70% of stocks should have a BUY signal, 20% SELL, 10% NEUTRAL
+    if h % 10 < 7:
         signal_type = "BUY"
-        pattern = "Bullish Reversal"
-    else:
-        target = current_price * 0.85  # 15% target
-        stop_loss = current_price * 1.08  # 8% stop loss
+        # Confidence between 70-95%
+        confidence = 70 + (h % 25)
+    elif h % 10 < 9:
         signal_type = "SELL"
-        pattern = "Bearish Reversal"
+        # Confidence between 70-90%
+        confidence = 70 + (h % 20)
+    else:
+        signal_type = "NEUTRAL"
+        confidence = 50
+        
+    return signal_type, confidence / 100  # Return confidence as a decimal
+
+def generate_technical_indicators(is_bullish: bool) -> Dict[str, Any]:
+    """Generate a set of technical indicators based on the signal type"""
+    if is_bullish:
+        return {
+            "rsi": random.randint(40, 65),
+            "macd": random.choice(["bullish", "neutral"]),
+            "sma_50_200": random.choice(["golden_cross", "neutral"]),
+            "bollinger": random.choice(["lower_touch", "middle_band"]),
+            "volume_trend": random.choice(["increasing", "neutral"])
+        }
+    else:
+        return {
+            "rsi": random.randint(35, 60),
+            "macd": random.choice(["bearish", "neutral"]),
+            "sma_50_200": random.choice(["death_cross", "neutral"]),
+            "bollinger": random.choice(["upper_touch", "middle_band"]),
+            "volume_trend": random.choice(["decreasing", "neutral"])
+        }
+
+def generate_pattern_analysis(is_bullish: bool) -> Dict[str, Any]:
+    """Generate pattern analysis based on the signal type"""
+    bullish_patterns = [
+        "Double Bottom", "Inverse Head and Shoulders", "Cup and Handle", 
+        "Bullish Engulfing", "Morning Star", "Flag Pattern", "Rounding Bottom"
+    ]
     
-    # Calculate risk-reward ratio
-    rrr = abs((target - current_price) / (current_price - stop_loss)) if stop_loss != current_price else 2.0
+    bearish_patterns = [
+        "Double Top", "Head and Shoulders", "Bearish Engulfing", 
+        "Evening Star", "Descending Triangle", "Rising Wedge"
+    ]
     
-    # Potential gain percentage
-    potential_gain = abs((target - current_price) / current_price) * 100
+    patterns = random.sample(bullish_patterns if is_bullish else bearish_patterns, k=random.randint(1, 3))
     
-    # Create the signal with proper structure for frontend compatibility
     return {
-        "id": f"equity-nse:eq-{symbol.lower()}-swing-{int(time.time())}-{random.randint(1000, 9999)}",
-        "trade_time": datetime.now().isoformat(),
-        "symbol": symbol,
-        "signal": signal_type,
-        "action": signal_type,  # Frontend compatibility
-        "entry": current_price,
-        "entry_price": current_price,  # Frontend compatibility
-        "target": target,
-        "target_price": target,  # Frontend compatibility
-        "stop_loss": stop_loss,
-        "rrr": rrr,
-        "risk_reward": rrr,  # Frontend compatibility
-        "risk_reward_ratio": rrr,  # Frontend compatibility
-        "potential_gain": potential_gain,  # Frontend compatibility
-        "trend": "bullish" if is_bullish_reversal else "bearish",
-        "timeframe": "daily",
-        "confidence": 0.75 + (random.random() * 0.2),  # 75-95% confidence
-        "confidence_score": int((0.75 + (random.random() * 0.2)) * 100),  # Frontend compatibility
-        "indicator_snapshot": {
-            "rsi": 30 if is_bullish_reversal else 70,  # Oversold for bullish reversal, overbought for bearish
-            "macd": 0.5 if is_bullish_reversal else -0.5,
-            "price_action": "positive" if is_bullish_reversal else "negative"
-        },
-        "pattern_analysis": {
-            "patterns_detected": [pattern]
-        },
-        "patterns": [pattern],  # Frontend compatibility
-        "setup_type": pattern,  # Frontend compatibility
-        "ai_opinion": {
-            "sentiment": "bullish" if is_bullish_reversal else "bearish",
-            "confidence": 0.8,
-            "reasoning": f"Potential {pattern.lower()} pattern detected on {symbol}. Price action suggests reversal from current trend."
-        },
-        "aiAnalysis": f"Potential {pattern.lower()} pattern detected on {symbol}. Price action suggests reversal from current trend.",  # Frontend compatibility
-        "sector": sector,
-        "market_cap": market_cap,
-        "expected_holding_period": "2-4 weeks",
-        "executed": False
+        "patterns_detected": patterns,
+        "strength": random.choice(["strong", "moderate", "weak"])
     }
 
-def generate_momentum_signal(symbol, current_price, sector, market_cap):
-    """Generate a momentum-based signal"""
-    # Simulate momentum conditions
-    is_bullish = random.choice([True, False])
+def generate_ai_opinion(symbol: str, company: str, signal_type: str, confidence: float) -> Dict[str, Any]:
+    """Generate AI opinion for a stock"""
+    buy_templates = [
+        f"{company} ({symbol}) shows promising bullish momentum with key support levels being respected. Recent volume patterns confirm buying interest.",
+        f"{symbol} has formed a strong technical setup with multiple indicators confirming a potential upward move. The risk-reward ratio is favorable.",
+        f"Technical analysis for {company} reveals a potential breakout pattern forming. Price action and momentum indicators are aligned for an upward move."
+    ]
     
-    # Calculate targets and stop loss
-    if is_bullish:
-        target = current_price * 1.12  # 12% target for momentum
-        stop_loss = current_price * 0.94  # 6% stop loss
-        signal_type = "BUY"
-        pattern = "Bullish Momentum"
-    else:
-        target = current_price * 0.88  # 12% target
-        stop_loss = current_price * 1.06  # 6% stop loss
-        signal_type = "SELL"
-        pattern = "Bearish Momentum"
+    sell_templates = [
+        f"{company} ({symbol}) is showing bearish divergence patterns with declining volume on recent rallies, suggesting potential downside.",
+        f"{symbol} has broken below key support levels with increasing volume, indicating potential continuation of the downtrend.",
+        f"Technical analysis for {company} suggests overhead resistance remains strong with bearish momentum building."
+    ]
     
-    # Calculate risk-reward ratio
-    rrr = abs((target - current_price) / (current_price - stop_loss)) if stop_loss != current_price else 2.0
+    reasoning = random.choice(buy_templates if signal_type == "BUY" else sell_templates)
     
-    # Potential gain percentage
-    potential_gain = abs((target - current_price) / current_price) * 100
-    
-    # Create the signal with proper structure for frontend compatibility
     return {
-        "id": f"equity-nse:eq-{symbol.lower()}-swing-{int(time.time())}-{random.randint(1000, 9999)}",
-        "trade_time": datetime.now().isoformat(),
-        "symbol": symbol,
-        "signal": signal_type,
-        "action": signal_type,  # Frontend compatibility
-        "entry": current_price,
-        "entry_price": current_price,  # Frontend compatibility
-        "target": target,
-        "target_price": target,  # Frontend compatibility
-        "stop_loss": stop_loss,
-        "rrr": rrr,
-        "risk_reward": rrr,  # Frontend compatibility
-        "risk_reward_ratio": rrr,  # Frontend compatibility
-        "potential_gain": potential_gain,  # Frontend compatibility
-        "trend": "bullish" if is_bullish else "bearish",
-        "timeframe": "daily",
-        "confidence": 0.75 + (random.random() * 0.2),  # 75-95% confidence
-        "confidence_score": int((0.75 + (random.random() * 0.2)) * 100),  # Frontend compatibility
-        "indicator_snapshot": {
-            "rsi": 60 if is_bullish else 40,
-            "macd": 0.7 if is_bullish else -0.7,
-            "price_action": "positive" if is_bullish else "negative"
-        },
-        "pattern_analysis": {
-            "patterns_detected": [pattern]
-        },
-        "patterns": [pattern],  # Frontend compatibility
-        "setup_type": pattern,  # Frontend compatibility
-        "ai_opinion": {
-            "sentiment": "bullish" if is_bullish else "bearish",
-            "confidence": 0.85,
-            "reasoning": f"Strong {pattern.lower()} on {symbol} with favorable technical alignment."
-        },
-        "aiAnalysis": f"Strong {pattern.lower()} on {symbol} with favorable technical alignment.",  # Frontend compatibility
-        "sector": sector,
-        "market_cap": market_cap,
-        "expected_holding_period": "2-3 weeks",
-        "executed": False
-    }
-
-def generate_breakout_signal(symbol, current_price, sector, market_cap):
-    """Generate a breakout-based signal"""
-    # Simulate breakout conditions
-    is_bullish = random.choice([True, False])
-    
-    # Calculate targets and stop loss
-    if is_bullish:
-        target = current_price * 1.10  # 10% target for breakout
-        stop_loss = current_price * 0.95  # 5% stop loss
-        signal_type = "BUY"
-        pattern = "Bullish Breakout"
-    else:
-        target = current_price * 0.90  # 10% target
-        stop_loss = current_price * 1.05  # 5% stop loss
-        signal_type = "SELL"
-        pattern = "Bearish Breakdown"
-    
-    # Calculate risk-reward ratio
-    rrr = abs((target - current_price) / (current_price - stop_loss)) if stop_loss != current_price else 2.0
-    
-    # Potential gain percentage
-    potential_gain = abs((target - current_price) / current_price) * 100
-    
-    # Create the signal with proper structure for frontend compatibility
-    return {
-        "id": f"equity-nse:eq-{symbol.lower()}-swing-{int(time.time())}-{random.randint(1000, 9999)}",
-        "trade_time": datetime.now().isoformat(),
-        "symbol": symbol,
-        "signal": signal_type,
-        "action": signal_type,  # Frontend compatibility
-        "entry": current_price,
-        "entry_price": current_price,  # Frontend compatibility
-        "target": target,
-        "target_price": target,  # Frontend compatibility
-        "stop_loss": stop_loss,
-        "rrr": rrr,
-        "risk_reward": rrr,  # Frontend compatibility
-        "risk_reward_ratio": rrr,  # Frontend compatibility
-        "potential_gain": potential_gain,  # Frontend compatibility
-        "trend": "bullish" if is_bullish else "bearish",
-        "timeframe": "daily",
-        "confidence": 0.75 + (random.random() * 0.2),  # 75-95% confidence
-        "confidence_score": int((0.75 + (random.random() * 0.2)) * 100),  # Frontend compatibility
-        "indicator_snapshot": {
-            "rsi": 65 if is_bullish else 35,
-            "macd": 0.6 if is_bullish else -0.6,
-            "price_action": "positive" if is_bullish else "negative"
-        },
-        "pattern_analysis": {
-            "patterns_detected": [pattern]
-        },
-        "patterns": [pattern],  # Frontend compatibility
-        "setup_type": pattern,  # Frontend compatibility
-        "ai_opinion": {
-            "sentiment": "bullish" if is_bullish else "bearish",
-            "confidence": 0.85,
-            "reasoning": f"Clear {pattern.lower()} detected on {symbol} with volume confirmation."
-        },
-        "aiAnalysis": f"Clear {pattern.lower()} detected on {symbol} with volume confirmation.",  # Frontend compatibility
-        "sector": sector,
-        "market_cap": market_cap,
-        "expected_holding_period": "1-3 weeks",
-        "executed": False
+        "sentiment": "bullish" if signal_type == "BUY" else "bearish",
+        "confidence": confidence,
+        "reasoning": reasoning
     }

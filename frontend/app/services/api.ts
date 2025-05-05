@@ -212,25 +212,61 @@ export const fetchIntradaySignals = async () => {
 /**
  * Fetch equity trading signals
  */
+// Update fetchEquitySignals in frontend/app/services/api.ts
+
+/**
+ * Fetch equity trading signals
+ */
 export const fetchEquitySignals = async () => {
   try {
-    // Get user preferences
+    // Get user preferences from localStorage
     const prefs = getTradingPreferences();
     
     // Only fetch if equity is enabled
-    if (!prefs.equity?.enabled) {
+    if (!prefs.equity?.enabled || !prefs.equity?.swing?.enabled) {
+      console.log('Equity trading is disabled in preferences, skipping fetch');
       return [];
     }
     
-    // Make API request
-    const response = await apiClient.get('/signals/equity');
-    return response.data;
+    // Build query params for sending ALL the preferences directly
+    const params = new URLSearchParams();
+    
+    // Add sectors if specified
+    if (prefs.equity?.swing?.sectors && prefs.equity.swing.sectors.length > 0) {
+      params.append('sectors', prefs.equity.swing.sectors.join(','));
+    }
+    
+    // Add market caps if specified
+    if (prefs.equity?.swing?.market_caps && prefs.equity.swing.market_caps.length > 0) {
+      params.append('market_caps', prefs.equity.swing.market_caps.join(','));
+    }
+    
+    // Add modes if specified
+    if (prefs.equity?.swing?.modes && prefs.equity.swing.modes.length > 0) {
+      params.append('modes', prefs.equity.swing.modes.join(','));
+    }
+    
+    // Add max stocks if specified
+    if (prefs.equity?.swing?.max_stocks) {
+      params.append('max_stocks', prefs.equity.swing.max_stocks.toString());
+    }
+    
+    // Add scan frequency if specified
+    if (prefs.equity?.swing?.scan_frequency) {
+      params.append('scan_frequency', prefs.equity.swing.scan_frequency);
+    }
+    
+    console.log('Fetching equity signals with params:', params.toString());
+    
+    // Make API request with query parameters
+    const response = await apiClient.get(`/signals/equity?${params.toString()}`);
+    
+    return response.data || [];
   } catch (error) {
     console.error('Error fetching equity signals:', error);
-    throw error;
+    return [];
   }
 };
-
 /**
  * Refresh signal analysis
  */
@@ -261,78 +297,13 @@ export const saveTradingPreferences = (preferences: TradingPreferences): boolean
  * Get user trading preferences from localStorage
  */
 export const getTradingPreferences = (): TradingPreferences => {
-  const defaultPreferences: TradingPreferences = {
-    options: {
-      enabled: false,
-      indexes: [],
-      modes: [],
-      auto_execute: false
-    },
-    intraday: {
-      enabled: false,
-      equity: {
-        enabled: false,
-        modes: [],
-        max_stocks: 3,
-        timeframes: [],
-        risk_per_trade: '1.0',
-        sectors: [],
-        stock_universe: [],
-        smart_filter: true
-      }
-    },
-    equity: {
-      enabled: false,
-      swing: {
-        enabled: false,
-        modes: [],
-        max_stocks: 5,
-        sectors: [],
-        scan_frequency: 'weekly',
-        market_caps: []
-      }
-    },
-    auto_execute: false,
-    log_enabled: true
-  };
-  
   try {
     const preferencesStr = localStorage.getItem('tradingPreferences');
-    if (!preferencesStr) {
-      return defaultPreferences;
-    }
-    
+   
     const storedPrefs = JSON.parse(preferencesStr);
     
-    // Ensure all fields are present by merging with default preferences
-    const mergedPreferences = {
-      ...defaultPreferences,
-      ...storedPrefs,
-      options: {
-        ...defaultPreferences.options,
-        ...(storedPrefs.options || {})
-      },
-      intraday: {
-        ...defaultPreferences.intraday,
-        ...(storedPrefs.intraday || {}),
-        equity: {
-          ...defaultPreferences.intraday.equity,
-          ...(storedPrefs.intraday?.equity || {})
-        }
-      },
-      equity: {
-        ...defaultPreferences.equity,
-        ...(storedPrefs.equity || {}),
-        swing: {
-          ...defaultPreferences.equity.swing,
-          ...(storedPrefs.equity?.swing || {})
-        }
-      }
-    };
-    
-    return mergedPreferences;
+    return storedPrefs;
   } catch (error) {
     console.error('Error retrieving trading preferences:', error);
-    return defaultPreferences;
   }
 };

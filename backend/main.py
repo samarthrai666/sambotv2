@@ -179,23 +179,49 @@ async def get_intraday_signals():
         traceback.print_exc()
         return []
 
+
 @app.get("/signals/equity")
-async def get_equity_signals():
+async def get_equity_signals(
+    sectors: str = None,
+    market_caps: str = None,
+    max_stocks: int = None,
+    modes: str = None
+):
     """Get available equity swing trading signals"""
     try:
-        print("Fetching equity swing signals...")
-        result = await strategy_map["equity_swing"](auto_execute=False)
+        print("\n===== PROCESSING EQUITY SIGNALS =====")
         
-        formatted_signals = []
-        if result and "non_executed" in result and result["non_executed"]:
-            for signal in result["non_executed"]:
-                # Extract symbol from the full symbol string
-                symbol = signal.get("symbol", "UNKNOWN")
-                formatted_signal = format_equity_signal_for_frontend(signal, symbol, "swing")
-                formatted_signals.append(formatted_signal)
+        # Parse query parameters sent from frontend
+        sector_list = sectors.split(',') if sectors else []
+        market_cap_list = market_caps.split(',') if market_caps else []
+        mode_list = modes.split(',') if modes else []
+        max_stocks_val = max_stocks if max_stocks is not None else 5
         
-        print(f"Found {len(formatted_signals)} equity signals")
-        return formatted_signals
+        print(f"[DEBUG] Query params - sectors: {sector_list}, market_caps: {market_cap_list}, max_stocks: {max_stocks_val}, modes: {mode_list}")
+        
+        # Create preferences from query parameters
+        preferences = {
+            "equity": {
+                "enabled": True,
+                "swing": {
+                    "enabled": True,
+                    "modes": mode_list,
+                    "max_stocks": max_stocks_val,
+                    "sectors": sector_list,
+                    "market_caps": market_cap_list
+                }
+            }
+        }
+        
+        print(f"[DEBUG] Using preferences: {json.dumps(preferences, indent=2)}")
+        
+        # Call the equity swing processor with the preferences
+        from processors.equity_swing import process
+        result = await process(auto_execute=False, preferences=preferences)
+        
+        print(f"[INFO] Returning {len(result.get('non_executed', []))} equity signals")
+        
+        return result.get("non_executed", [])
     except Exception as e:
         print(f"[ERROR] Failed to get equity signals: {str(e)}")
         import traceback

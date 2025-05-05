@@ -14,96 +14,6 @@ import SwingEquitySignals from '@/components/signals/SwingEquitySignals';
 import IntradayEquitySignals from '@/components/signals/IntradayEquitySignals';
 import { convertToSwingEquityFormat, convertToIntradayFormat, extractEquitySignals } from '../utils/signalAdapters';
 
-// Mock data for backup when API doesn't return signals
-const mockSwingSignals = [
-  {
-    id: 'swing-1',
-    symbol: 'HDFCBANK',
-    action: 'BUY' as const,
-    entry_price: 1680.50,
-    target_price: 1750.25,
-    stop_loss: 1650.00,
-    risk_reward: 2.3,
-    potential_gain: 4.15,
-    timeframe: 'Daily',
-    confidence: 85,
-    setup_type: 'Cup & Handle',
-    sector: 'Banking',
-    analysis: 'HDFC Bank is showing a strong cup and handle pattern on the daily timeframe. Volume profile supports the breakout and sector rotation indicators show renewed interest in banking stocks. The pattern targets 1750 with a favorable risk-reward ratio.',
-    executed: false
-  },
-  {
-    id: 'swing-2',
-    symbol: 'INFY',
-    action: 'BUY' as const,
-    entry_price: 1450.75,
-    target_price: 1520.00,
-    stop_loss: 1420.50,
-    risk_reward: 2.1,
-    potential_gain: 4.8,
-    timeframe: 'Daily',
-    confidence: 78,
-    setup_type: 'Breakout',
-    sector: 'IT',
-    analysis: 'Infosys is breaking out of a 3-month consolidation range with increasing volume. The IT sector is showing relative strength compared to the broader market. Key technical indicators including RSI and MACD support this bullish view.',
-    executed: false
-  }
-];
-
-const mockIntradaySignals = [
-  {
-    id: 'intraday-1',
-    symbol: 'RELIANCE',
-    action: 'BUY' as const,
-    entry_price: 2580.25,
-    target_price: 2605.50,
-    stop_loss: 2565.00,
-    risk_reward: 1.7,
-    potential_gain: 0.98,
-    timeframe: '15m',
-    confidence: 82,
-    strategy: 'Trend Following' as const,
-    volume_surge: 1.5,
-    key_level: 2575.00,
-    trigger: 'Break above 15-min resistance',
-    executed: false
-  },
-  {
-    id: 'intraday-2',
-    symbol: 'SBIN',
-    action: 'SELL' as const,
-    entry_price: 675.50,
-    target_price: 665.25,
-    stop_loss: 680.75,
-    risk_reward: 1.9,
-    potential_gain: 1.52,
-    timeframe: '5m',
-    confidence: 76,
-    strategy: 'Mean Reversion' as const,
-    volume_surge: 1.2,
-    key_level: 678.00,
-    trigger: 'Rejection at hourly resistance',
-    executed: false
-  },
-  {
-    id: 'intraday-3',
-    symbol: 'TATAMOTORS',
-    action: 'BUY' as const,
-    entry_price: 875.25,
-    target_price: 890.00,
-    stop_loss: 868.00,
-    risk_reward: 2.0,
-    potential_gain: 1.69,
-    timeframe: '5m',
-    confidence: 88,
-    strategy: 'Opening Range' as const,
-    volume_surge: 2.3,
-    key_level: 872.50,
-    trigger: 'ORB 30-min breakout',
-    executed: true
-  }
-];
-
 export default function SignalsPage() {
   const router = useRouter();
   const [signals, setSignals] = useState<SignalResponse>({
@@ -206,7 +116,12 @@ export default function SignalsPage() {
         setEquitySignals(convertToSwingEquityFormat(equitySignalsFromAPI));
       } else {
         console.log('No equity signals found in API response');
+        // Clear equity signals when no signals are found
+        setEquitySignals([]);
       }
+    } else {
+      // Clear equity signals when no signals are returned
+      setEquitySignals([]);
     }
   }, [signals.non_executed_signals]);
 
@@ -352,11 +267,9 @@ export default function SignalsPage() {
 
   const handleManualExecution = async (signalId: string) => {
     try {
-      // Find the signal to be executed (options, swing, or intraday)
+      // Find the signal to be executed (options or equity)
       const signalToExecute = signals.non_executed_signals.find(s => s.id === signalId) ||
-                              equitySignals.find(s => s.id === signalId) ||
-                              mockSwingSignals.find(s => s.id === signalId) ||
-                              mockIntradaySignals.find(s => s.id === signalId);
+                              equitySignals.find(s => s.id === signalId);
                              
       if (!signalToExecute) {
         logger.error(`Signal ${signalId} not found`);
@@ -367,8 +280,7 @@ export default function SignalsPage() {
       logger.signal(`Executing Trade: ${formatSignalDetails(signalToExecute)}`);
       
       // If it's an options signal, use the regular flow
-      if (signalId.indexOf('swing') === -1 && signalId.indexOf('intraday') === -1 && 
-          signalId.indexOf('equity') === -1) {
+      if (signalId.indexOf('equity') === -1) {
         const response = await executeSignal(signalId);
 
         setSignals(prevSignals => {
@@ -396,50 +308,21 @@ export default function SignalsPage() {
         });
       } 
       // For equity signals, handle execution
-      else if (signalId.indexOf('equity') >= 0) {
-        // Mock execution response for equity signals
-        const mockResponse = {
-          order_id: `EQ-${Date.now().toString().substring(7)}`,
-          status: 'success'
-        };
+      else {
+        // Call execute signal API
+        const response = await executeSignal(signalId);
         
         // Update equity signals state
         setEquitySignals(prevSignals => {
           return prevSignals.map(signal => 
             signal.id === signalId 
-              ? { ...signal, executed: true, order_id: mockResponse.order_id } 
+              ? { ...signal, executed: true, order_id: response.order_id } 
               : signal
           );
         });
         
         // Log success
-        logger.success(`Order Executed: ${formatSignalDetails(signalToExecute)} (Order ID: ${mockResponse.order_id})`);
-      }
-      // For mock equity signals (both swing and intraday), handle mock execution
-      else {
-        // Mock execution response
-        const mockResponse = {
-          order_id: `ORD-${Date.now().toString().substring(7)}`,
-          status: 'success'
-        };
-        
-        // Update mock data (in a real app, we'd update the API/backend)
-        if (signalId.indexOf('swing') >= 0) {
-          mockSwingSignals.forEach(signal => {
-            if (signal.id === signalId) {
-              signal.executed = true;
-            }
-          });
-        } else {
-          mockIntradaySignals.forEach(signal => {
-            if (signal.id === signalId) {
-              signal.executed = true;
-            }
-          });
-        }
-        
-        // Log success
-        logger.success(`Order Executed: ${formatSignalDetails(signalToExecute)} (Order ID: ${mockResponse.order_id})`);
+        logger.success(`Order Executed: ${formatSignalDetails(signalToExecute)} (Order ID: ${response.order_id})`);
       }
     } catch (error) {
       console.error('Error executing signal:', error);
@@ -482,6 +365,15 @@ export default function SignalsPage() {
       availableSignals: optionSignals,
       executedSignals: executedOptionSignals
     };
+  };
+
+  // Get intraday signals
+  const getIntradaySignals = () => {
+    const intradaySignals = signals.non_executed_signals.filter(
+      signal => signal.timeframe === '5m' || signal.timeframe === '15m' || signal.timeframe === '1m'
+    );
+    
+    return convertToIntradayFormat(intradaySignals);
   };
 
   if (!isAuthenticated || loading) {
@@ -555,26 +447,19 @@ export default function SignalsPage() {
             
             {/* Equity Trading Modules */}
             <div className="lg:col-span-1 space-y-6">
-              {/* Swing Equity Trading Module - FIXED CONDITION */}
+              {/* Swing Equity Trading Module */}
               {tradingPreferences.equity?.swing?.enabled && (
                 <SwingEquitySignals
-                  signals={equitySignals.length > 0 ? equitySignals : mockSwingSignals}
+                  signals={equitySignals}
                   onExecute={handleManualExecution}
                   isLoading={isRefreshing}
                 />
               )}
               
-              {/* Intraday Equity Trading Module - FIXED CONDITION */}
+              {/* Intraday Equity Trading Module */}
               {tradingPreferences.intraday?.equity?.enabled && (
                 <IntradayEquitySignals
-                  signals={convertToIntradayFormat(signals.non_executed_signals.filter(s => 
-                    s.timeframe === '5m' || s.timeframe === '15m' || s.timeframe === '1m'
-                  )).length > 0 ? 
-                    convertToIntradayFormat(signals.non_executed_signals.filter(s => 
-                      s.timeframe === '5m' || s.timeframe === '15m' || s.timeframe === '1m'
-                    )) : 
-                    mockIntradaySignals
-                  }
+                  signals={getIntradaySignals()}
                   onExecute={handleManualExecution}
                   isLoading={isRefreshing}
                 />
