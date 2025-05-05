@@ -182,44 +182,27 @@ async def get_intraday_signals():
 
 @app.get("/signals/equity")
 async def get_equity_signals(
-    sectors: str = None,
-    market_caps: str = None,
-    max_stocks: int = None,
-    modes: str = None
+    sectors: str = "",
+    market_caps: str = "",
+    max_stocks: int = 5
 ):
-    """Get available equity swing trading signals"""
+    """Get available equity swing trading signals with filtering"""
     try:
         print("\n===== PROCESSING EQUITY SIGNALS =====")
         
-        # Parse query parameters sent from frontend
-        sector_list = sectors.split(',') if sectors else []
-        market_cap_list = market_caps.split(',') if market_caps else []
-        mode_list = modes.split(',') if modes else []
-        max_stocks_val = max_stocks if max_stocks is not None else 5
+        # Parse filter parameters
+        sectors_list = sectors.split(",") if sectors else []
+        market_caps_list = market_caps.split(",") if market_caps else []
         
-        print(f"[DEBUG] Query params - sectors: {sector_list}, market_caps: {market_cap_list}, max_stocks: {max_stocks_val}, modes: {mode_list}")
+        print(f"Equity filter: sectors={sectors_list}, market_caps={market_caps_list}, max_stocks={max_stocks}")
         
-        # Create preferences from query parameters
-        preferences = {
-            "equity": {
-                "enabled": True,
-                "swing": {
-                    "enabled": True,
-                    "modes": mode_list,
-                    "max_stocks": max_stocks_val,
-                    "sectors": sector_list,
-                    "market_caps": market_cap_list
-                }
-            }
-        }
-        
-        print(f"[DEBUG] Using preferences: {json.dumps(preferences, indent=2)}")
-        
-        # Call the equity swing processor with the preferences
-        from processors.equity_swing import process
-        result = await process(auto_execute=False, preferences=preferences)
-        
-        print(f"[INFO] Returning {len(result.get('non_executed', []))} equity signals")
+        # Call the processor with filter parameters
+        result = await strategy_map["equity_swing"](
+            auto_execute=False, 
+            sectors=sectors_list,
+            market_caps=market_caps_list,
+            max_stocks=max_stocks
+        )
         
         return result.get("non_executed", [])
     except Exception as e:

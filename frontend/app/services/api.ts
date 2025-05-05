@@ -29,7 +29,7 @@ apiClient.interceptors.request.use(
  * Refresh trading signals based on user preferences
  * This function is used by the signals page to fetch updated signals
  */
-export const refreshSignals = async (): Promise<SignalResponse> => {
+export const refreshSignalss = async (): Promise<SignalResponse> => {
   try {
     // Get user preferences from localStorage
     const prefs = getTradingPreferences();
@@ -75,54 +75,6 @@ export const refreshSignals = async (): Promise<SignalResponse> => {
   }
 };
 
-/**
- * Fetch all available signals based on user preferences
- */
-export const fetchAvailableSignals = async (): Promise<SignalResponse> => {
-  try {
-    // Get user preferences from localStorage
-    const prefs = getTradingPreferences();
-    
-    // Build query params based on the new structure
-    const params = new URLSearchParams();
-    
-    // Options trading preferences
-    if (prefs.options?.enabled) {
-      if (prefs.options.indexes.includes('NIFTY')) {
-        params.append('nifty', prefs.options.modes.join(','));
-      }
-      if (prefs.options.indexes.includes('BANKNIFTY')) {
-        params.append('banknifty', prefs.options.modes.join(','));
-      }
-    }
-    
-    // Intraday preferences
-    if (prefs.intraday?.enabled) {
-      params.append('intraday', 'true');
-    }
-    
-    // Equity preferences
-    if (prefs.equity?.enabled) {
-      params.append('equity_swing', 'true');
-    }
-    
-    console.log('Query params:', params.toString());
-    
-    // Send the request with the user's preferences as query params
-    const url = `/signals/available?${params.toString()}`;
-    console.log('Request URL:', url);
-    
-    const response = await apiClient.get(url);
-    
-    return {
-      executed_signals: [],
-      non_executed_signals: response.data || []
-    };
-  } catch (error) {
-    console.error('Error fetching available signals:', error);
-    throw error;
-  }
-};
 
 /**
  * Execute a trading signal
@@ -214,57 +166,45 @@ export const fetchIntradaySignals = async () => {
  */
 // Update fetchEquitySignals in frontend/app/services/api.ts
 
-/**
- * Fetch equity trading signals
- */
-export const fetchEquitySignals = async () => {
+export const refreshSignals = async () => {
   try {
-    // Get user preferences from localStorage
+    // Get user preferences
     const prefs = getTradingPreferences();
     
     // Only fetch if equity is enabled
-    if (!prefs.equity?.enabled || !prefs.equity?.swing?.enabled) {
-      console.log('Equity trading is disabled in preferences, skipping fetch');
+    if (!prefs.equity?.enabled) {
       return [];
     }
     
-    // Build query params for sending ALL the preferences directly
+    // Build query params
     const params = new URLSearchParams();
     
-    // Add sectors if specified
-    if (prefs.equity?.swing?.sectors && prefs.equity.swing.sectors.length > 0) {
+    // Add sectors if available
+    if (prefs.equity.swing?.sectors && prefs.equity.swing.sectors.length > 0) {
       params.append('sectors', prefs.equity.swing.sectors.join(','));
     }
     
-    // Add market caps if specified
-    if (prefs.equity?.swing?.market_caps && prefs.equity.swing.market_caps.length > 0) {
+    // Add market caps if available
+    if (prefs.equity.swing?.market_caps && prefs.equity.swing.market_caps.length > 0) {
       params.append('market_caps', prefs.equity.swing.market_caps.join(','));
     }
     
-    // Add modes if specified
-    if (prefs.equity?.swing?.modes && prefs.equity.swing.modes.length > 0) {
-      params.append('modes', prefs.equity.swing.modes.join(','));
-    }
-    
-    // Add max stocks if specified
-    if (prefs.equity?.swing?.max_stocks) {
+    // Add max stocks if available
+    if (prefs.equity.swing?.max_stocks) {
       params.append('max_stocks', prefs.equity.swing.max_stocks.toString());
     }
     
-    // Add scan frequency if specified
-    if (prefs.equity?.swing?.scan_frequency) {
-      params.append('scan_frequency', prefs.equity.swing.scan_frequency);
-    }
+    console.log('Equity query params:', params.toString());
     
-    console.log('Fetching equity signals with params:', params.toString());
-    
-    // Make API request with query parameters
+    // Make API request with filter params
     const response = await apiClient.get(`/signals/equity?${params.toString()}`);
-    
-    return response.data || [];
+    return {
+      executed_signals: [],
+      non_executed_signals: response.data || []
+    };
   } catch (error) {
     console.error('Error fetching equity signals:', error);
-    return [];
+    throw error;
   }
 };
 /**

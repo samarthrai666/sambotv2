@@ -82,7 +82,7 @@ export default function Header({ showActions = true }: HeaderProps) {
                 {/* Text with gradient - no animation */}
                 <div className="ml-3 flex flex-col">
                   <span className="text-2xl font-bold text-green-600">
-                    SamarAI
+                    SamurAI
                   </span>
                   <span className="text-xs text-green-600 tracking-widest font-medium">AI TRADING ASSISTANT</span>
                 </div>
