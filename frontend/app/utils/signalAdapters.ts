@@ -1,4 +1,4 @@
-// frontend/app/utils/signalAdapters.ts
+// app/utils/signalAdapters.ts
 import { Signal } from '../../types/trading';
 
 /**
@@ -7,30 +7,106 @@ import { Signal } from '../../types/trading';
 export const convertToSwingEquityFormat = (signals: any[]) => {
   if (!signals || !Array.isArray(signals)) return [];
   
-  return signals.map(signal => ({
-    id: signal.id || `equity-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    symbol: typeof signal.symbol === 'string' && signal.symbol.includes(':') 
-      ? signal.symbol.split(':')[1].split('-')[1] // Extract from format NSE:EQ-SYMBOL
-      : signal.symbol,
-    action: signal.action as 'BUY' | 'SELL',
-    entry_price: signal.entry_price || signal.price || signal.entry || 0,
-    target_price: signal.target_price || signal.target || 0,
-    stop_loss: signal.stop_loss || 0,
-    risk_reward: signal.risk_reward_ratio || signal.risk_reward || signal.rrr || 1.5,
-    potential_gain: signal.potential_gain || signal.potential_return * 100 || 
-      ((signal.target_price || signal.target || 0) - (signal.entry_price || signal.price || signal.entry || 0)) / 
-      (signal.entry_price || signal.price || signal.entry || 1) * 100,
-    timeframe: signal.timeframe || 'Daily',
-    confidence: typeof signal.confidence === 'number' && signal.confidence <= 1 
-      ? signal.confidence * 100 
-      : signal.confidence_score || signal.confidence || 75,
-    setup_type: signal.setup_type || signal.patterns?.[0] || 
-      signal.pattern_analysis?.patterns_detected?.[0] || 'Swing Trade',
-    sector: signal.sector || 'Equity',
-    analysis: signal.analysis || signal.aiAnalysis || signal.notes || 
-      `${signal.action} signal for ${signal.symbol} with risk-reward ratio of ${signal.risk_reward_ratio || signal.risk_reward || signal.rrr || 1.5}`,
-    executed: signal.executed || false
-  }));
+  return signals.map(signal => {
+    // Extract symbol from potentially complex format
+    const symbolRaw = signal.symbol || '';
+    const symbol = typeof symbolRaw === 'string' && symbolRaw.includes(':') 
+      ? symbolRaw.split(':')[1].split('-')[1] // Extract from format NSE:EQ-SYMBOL
+      : symbolRaw;
+    
+    // Extract/map signal action/type
+    const signalType = signal.signal || signal.action || 'UNKNOWN';
+    
+    // Map price properties
+    const entry = signal.entry || signal.entry_price || signal.price || 0;
+    const target = signal.target || signal.target_price || 0;
+    const stopLoss = signal.stop_loss || 0;
+    
+    // Calculate risk-reward if not present
+    const rrr = signal.rrr || signal.risk_reward_ratio || signal.risk_reward || 
+      (stopLoss !== entry ? Math.abs((target - entry) / (entry - stopLoss)) : 0);
+    
+    // Handle pattern detection
+    const patternsDetected = 
+      (signal.pattern_analysis && signal.pattern_analysis.patterns_detected) || 
+      (signal.patterns ? [].concat(signal.patterns) : []) || 
+      (signal.setup_type ? [signal.setup_type] : []);
+
+    
+    // Get appropriate confidence value
+    let confidence = signal.confidence || signal.confidence_score || 0;
+    if (confidence > 0 && confidence <= 1) {
+      // Convert decimal confidence to percentage
+      confidence = confidence;
+    } else if (confidence > 1) {
+      // Already a percentage, normalize to decimal
+      confidence = confidence / 100;
+    }
+    
+    // Construct indicator snapshot
+    const indicatorSnapshot = {
+      rsi: signal.indicator_snapshot?.rsi || signal.indicators?.rsi || 'neutral',
+      rsi_value: signal.indicator_snapshot?.rsi_value || signal.indicators?.rsi_value || 50,
+      macd: signal.indicator_snapshot?.macd || signal.indicators?.macd || 'neutral',
+      sma_50_200: signal.indicator_snapshot?.sma_50_200 || signal.indicators?.sma_50_200 || 'neutral',
+      bollinger: signal.indicator_snapshot?.bollinger || signal.indicators?.bollinger || 'neutral',
+      volume_trend: signal.indicator_snapshot?.volume_trend || signal.indicators?.volume_trend || 'normal'
+    };
+    
+    // Get analysis text
+    const aiReasoning = 
+      (signal.ai_opinion && signal.ai_opinion.reasoning) || 
+      signal.analysis || 
+      signal.reasoning || 
+      `${signalType} signal for ${symbol} with risk-reward ratio of ${rrr.toFixed(2)}`;
+    
+    return {
+      // Basic identification
+      id: signal.id || `equity-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      symbol: symbol,
+      company: signal.company || '',
+      sector: signal.sector || 'Equity',
+      market_cap: signal.market_cap || '',
+      
+      // Signal type and prices
+      signal: signalType,
+      entry: entry,
+      target: target,
+      stop_loss: stopLoss,
+      rrr: rrr,
+      
+      // Trend and timeframe
+      trend: signal.trend || 'neutral',
+      timeframe: signal.timeframe || 'daily',
+      
+      // Confidence
+      confidence: confidence,
+      
+      // Technical indicators
+      indicator_snapshot: indicatorSnapshot,
+      
+      // Pattern analysis
+      pattern_analysis: {
+        patterns_detected: patternsDetected,
+        strength: signal.pattern_analysis?.strength || 'moderate'
+      },
+      
+      // AI opinion
+      ai_opinion: {
+        sentiment: signal.ai_opinion?.sentiment || (signalType === 'BUY' ? 'bullish' : 'bearish'),
+        confidence: confidence,
+        reasoning: aiReasoning
+      },
+      
+      // Timing info
+      expected_holding_period: signal.expected_holding_period || signal.holding_period || '10-15 days',
+      expected_exit_date: signal.expected_exit_date || '',
+      trade_time: signal.trade_time || signal.timestamp || new Date().toISOString(),
+      
+      // Status
+      executed: signal.executed || false
+    };
+  });
 };
 
 /**
@@ -90,7 +166,7 @@ export const isEquitySignal = (signal: any): boolean => {
   }
   
   // Check for essential properties that would be in an equity signal
-  if (signal.action && 
+  if ((signal.action || signal.signal) && 
       (signal.entry_price || signal.price || signal.entry) && 
       (signal.target_price || signal.target) &&
       signal.stop_loss) {
